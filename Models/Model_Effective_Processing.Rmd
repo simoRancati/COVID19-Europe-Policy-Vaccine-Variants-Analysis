@@ -1,0 +1,3302 @@
+---
+title: "MODEL MIXED EFFECT"
+author: "Simone_Rancati"
+date: "2024-06-01"
+output: html_document
+---
+
+# INSTALL PACKAGES
+```{r setup, include=FALSE}
+# Installa le dipendenze richieste manualmente
+install.packages("RcppEigen")
+install.packages("igraph")
+install.packages("RcppArmadillo")
+install.packages("mvtnorm")
+install.packages("arm")
+install.packages("graphicalVAR")
+
+# Poi installa mlVAR e pompom
+install.packages("mlVAR")
+install.packages("pompom")
+
+# Installa le altre librerie
+install.packages("psych")
+install.packages("plyr")
+install.packages("ggplot2")
+install.packages("lme4")
+install.packages("plm")
+install.packages("pheatmap")
+```
+
+# LOAD PACKAGES
+```{r setup, include=FALSE}
+# load libraries
+library(psych)
+library(plyr)
+library(ggplot2)
+library(pompom)
+library(mlVAR)
+library(lme4)
+library(plm)
+library(dplyr)
+library(Matrix)
+library(pheatmap)
+# Load required packages
+library(ggplot2)
+library(reshape2)  # If needed for melting the data frame
+
+# load dataset 
+load('/Users/utente/Desktop/Periscope/Tesi_Magistrale_Chiara/Code_New_PAPER/Dataset_preprocessing.RData')
+```
+
+# PRE-PROCESSING
+```{r setup, include=FALSE}
+# Funzione per elaborare db_nation_year
+process_db_nation_year <- function(df) {
+  # Rimuovere le colonne 'week_number', 'Daily_ICU_occupancy' e 'Daily_hospital_occupancy' se presenti
+  cols_to_remove <- c("week_number", "Daily_ICU_occupancy", "Daily_hospital_occupancy")
+  df <- df[, !colnames(df) %in% cols_to_remove]
+  
+  # Lista delle colonne richieste, escludendo 'Daily_ICU_occupancy' e 'Daily_hospital_occupancy'
+  required_cols <- c("Weekly new ICU admissions per 100k",
+                     "Weekly new hospital admissions per 100k", "cases", "deaths")
+  
+  # Aggiungere colonne mancanti con NA
+  for (col in required_cols) {
+    if (!(toupper(col) %in% toupper(colnames(df)))) {
+      df[[col]] <- NA
+    }
+  }
+  
+  return(df)
+}
+
+process_db_vaccine_nation_year <- function(df) {
+  # Rimuovere la colonna 'YearWeekISO' se presente
+  if("YearWeekISO" %in% colnames(df)) {
+    df <- df[, !colnames(df) %in% "YearWeekISO"]
+  }
+  
+  # Lista delle colonne richieste
+  required_cols <- c("FirstDose", "SecondDose", "Booster")
+  
+  # Aggiungere colonne mancanti con NA
+  for (col in required_cols) {
+    if (!(toupper(col) %in% toupper(colnames(df)))) {
+      df[[col]] <- NA
+    }
+  }
+  
+  # Sostituire le colonne vuote con NA
+  for (col in colnames(df)) {
+    if (all(is.na(df[[col]]) | df[[col]] == "")) {
+      df[[col]] <- NA
+    }
+  }
+  
+  return(df)
+}
+
+# Funzione per elaborare data_variant_nation_year
+process_data_variant_nation_year_2020 <- function(df) {
+  # Lista delle colonne richieste
+  required_cols <- c("Alpha", "Beta", "Delta", "Zeta")
+  
+  # Aggiungere colonne mancanti con NA
+  for (col in required_cols) {
+    if (!(toupper(col) %in% toupper(colnames(df)))) {
+      df[[col]] <- NA
+    }
+  }
+  
+  # Rimuovere la colonna 'week_number' se presente
+  if("week_number" %in% colnames(df)) {
+    df <- df[, !colnames(df) %in% "week_number"]
+  }
+  
+  return(df)
+}
+
+
+# Funzione per elaborare data_variant_nation_year
+process_data_variant_nation_year_2021 <- function(df) {
+  # Lista delle colonne richieste
+  required_cols <- c("Alpha", "Beta", "Delta", "Zeta", "Theta", "Gamma", "Epsilon", "Eta", "Kappa", "Iota", "Mu", "Lambda", "GH/490R", "Omicron")
+  
+  # Aggiungere colonne mancanti con NA
+  for (col in required_cols) {
+    if (!(toupper(col) %in% toupper(colnames(df)))) {
+      df[[col]] <- NA
+    }
+  }
+  
+  # Rimuovere la colonna 'week_number' se presente
+  if("week_number" %in% colnames(df)) {
+    df <- df[, !colnames(df) %in% "week_number"]
+  }
+  
+  return(df)
+}
+
+# Funzione per elaborare data_variant_nation_year
+process_data_variant_nation_year_2022 <- function(df) {
+  # Lista delle colonne richieste
+  required_cols <- c("Delta","GH/490R", "Omicron", "Alpha", "(BA.2.75+BA.2.75.*)", "(CH.1.1+CH.1.1.*)", "(XBB+XBB.*", "(XBB.1.5+XBB.1.5.*)")
+  
+  # Aggiungere colonne mancanti con NA
+  for (col in required_cols) {
+    if (!(toupper(col) %in% toupper(colnames(df)))) {
+      df[[col]] <- NA
+    }
+  }
+  
+  # Rimuovere la colonna 'week_number' se presente
+  if("week_number" %in% colnames(df)) {
+    df <- df[, !colnames(df) %in% "week_number"]
+  }
+  
+  return(df)
+}
+
+# Funzione per sostituire i dati NaN con l'ultimo valore non mancante o zero
+sostituisci_nan <- function(df) {
+  for(i in 1:ncol(df)) {
+    for(j in 2:nrow(df)) {
+      if(is.na(df[j, i]) && !is.na(df[j - 1, i]) && df[j - 1, i] != 0) {
+        df[j, i] <- df[j - 1, i]
+      }
+    }
+  }
+  
+  df[is.na(df)] <- 0
+  
+  return(df)
+}
+
+# Funzione principale
+elabora_dati <- function(df) {
+  df <- sostituisci_nan(df)
+  return(df)
+}
+```
+
+# BUILT DATASET 
+```{r setup, include=FALSE}
+# Function to create dataset 
+buildCountryData3_2020 <- function(dbCountry, dbIndici, countryData, id_stato) {
+  # Unire dbCountry e dbIndici utilizzando cbind, partendo da nweek_start
+  combinedData <- cbind(dbCountry, stringIdx = dbIndici$weekly_information)
+  
+  # Aggiungere i dati al countryData
+  for (i in 1:nrow(combinedData)) {
+    n <- nrow(countryData)
+    countryData[n + 1, "I_t"] <- combinedData[i, "stringIdx"]
+    countryData[n + 1, "nuoviCasi_t"] <- combinedData[i, "cases"]
+    countryData[n + 1, "admHosp_t"] <- combinedData[i, "Weekly new hospital admissions per 100k"]
+    countryData[n + 1, "admICU_t"] <- combinedData[i, "Weekly new ICU admissions per 100k"]
+    countryData[n + 1, "morti_t"] <- combinedData[i, "deaths"]
+    countryData[n + 1, "Fdose"] <- combinedData[i, "FirstDose"]
+    countryData[n + 1, "Sdose"] <- combinedData[i, "SecondDose"]
+    countryData[n + 1, "Bdose"] <- combinedData[i, "Booster"]
+    countryData[n + 1, "Alpha"] <- combinedData[i, "Alpha"]
+    countryData[n + 1, "Beta"] <- combinedData[i, "Beta"]
+    countryData[n + 1, "Delta"] <- combinedData[i, "Delta"]
+    countryData[n + 1, "Zeta"] <- combinedData[i, "Zeta"]
+    countryData[n + 1, "ID"] <- id_stato
+  }
+  
+  return(countryData)
+}
+
+
+# Function to create dataset 
+buildCountryData3_2021 <- function(dbCountry, dbIndici, countryData, id_stato) {
+  # Unire dbCountry e dbIndici utilizzando cbind, partendo da nweek_start
+  combinedData <- cbind(dbCountry, stringIdx = dbIndici$weekly_information)
+  
+  # Aggiungere i dati al countryData
+  for (i in 1:nrow(combinedData)) {
+    n <- nrow(countryData)
+    countryData[n + 1, "I_t"] <- combinedData[i, "stringIdx"]
+    countryData[n + 1, "nuoviCasi_t"] <- combinedData[i, "cases"]
+    countryData[n + 1, "admHosp_t"] <- combinedData[i, "Weekly new hospital admissions per 100k"]
+    countryData[n + 1, "admICU_t"] <- combinedData[i, "Weekly new ICU admissions per 100k"]
+    countryData[n + 1, "morti_t"] <- combinedData[i, "deaths"]
+    countryData[n + 1, "Fdose"] <- combinedData[i, "FirstDose"]
+    countryData[n + 1, "Sdose"] <- combinedData[i, "SecondDose"]
+    countryData[n + 1, "Bdose"] <- combinedData[i, "Booster"]
+    countryData[n + 1, "Alpha"] <- combinedData[i, "Alpha"]
+    countryData[n + 1, "Beta"] <- combinedData[i, "Beta"]
+    countryData[n + 1, "Delta"] <- combinedData[i, "Delta"]
+    countryData[n + 1, "Zeta"] <- combinedData[i, "Zeta"]
+    countryData[n + 1, "Theta"] <- combinedData[i, "Theta"]
+    countryData[n + 1, "Gamma"] <- combinedData[i, "Gamma"]
+    countryData[n + 1, "Epsilon"] <- combinedData[i, "Epsilon"]
+    countryData[n + 1, "Eta"] <- combinedData[i, "Eta"]
+    countryData[n + 1, "Kappa"] <- combinedData[i, "Kappa"]
+    countryData[n + 1, "Iota"] <- combinedData[i, "Iota"]
+    countryData[n + 1, "Mu"] <- combinedData[i, "Mu"]
+    countryData[n + 1, "Lambda"] <- combinedData[i, "Lambda"]
+    countryData[n + 1, "GH490R"] <- combinedData[i, "GH/490R"]
+    countryData[n + 1, "Omicron"] <- combinedData[i, "Omicron"]
+    countryData[n + 1, "ID"] <- id_stato
+  }
+  
+  return(countryData)
+}
+
+# Function to create dataset 
+buildCountryData3_2022 <- function(dbCountry, dbIndici, countryData, id_stato) {
+  # Unire dbCountry e dbIndici utilizzando cbind, partendo da nweek_start
+  combinedData <- cbind(dbCountry, stringIdx = dbIndici$weekly_information)
+  
+  # Aggiungere i dati al countryData
+  for (i in 1:nrow(combinedData)) {
+    n <- nrow(countryData)
+    countryData[n + 1, "I_t"] <- combinedData[i, "stringIdx"]
+    countryData[n + 1, "nuoviCasi_t"] <- combinedData[i, "cases"]
+    countryData[n + 1, "admHosp_t"] <- combinedData[i, "Weekly new hospital admissions per 100k"]
+    countryData[n + 1, "admICU_t"] <- combinedData[i, "Weekly new ICU admissions per 100k"]
+    countryData[n + 1, "morti_t"] <- combinedData[i, "deaths"]
+    countryData[n + 1, "Fdose"] <- combinedData[i, "FirstDose"]
+    countryData[n + 1, "Sdose"] <- combinedData[i, "SecondDose"]
+    countryData[n + 1, "Bdose"] <- combinedData[i, "Booster"]
+    countryData[n + 1, "Delta"] <- combinedData[i, "Delta"]
+    countryData[n + 1, "GH490R"] <- combinedData[i, "GH/490R"]
+    countryData[n + 1, "Omicron"] <- combinedData[i, "Omicron"]
+    countryData[n + 1, "Alpha"] <- combinedData[i, "Alpha"]
+    countryData[n + 1, "BA.2.75"] <- combinedData[i, "(BA.2.75+BA.2.75.*)"]
+    countryData[n + 1, "CH.1.1"] <- combinedData[i, "(CH.1.1+CH.1.1.*)"]
+    countryData[n + 1, "XBB"] <- combinedData[i, "(XBB+XBB.*"]
+    countryData[n + 1, "XBB.1.5"] <- combinedData[i, "(XBB.1.5+XBB.1.5.*)"]
+    countryData[n + 1, "ID"] <- id_stato
+  }
+  
+  return(countryData)
+}
+```
+
+# SPAIN 
+```{r setup, include=FALSE}
+# 2020
+db_Spain_2020 <- process_db_nation_year(db_Spain_2020)
+db_vaccine_Spain_2020 <- process_db_vaccine_nation_year(db_vaccine_Spain_2020)
+data_Variant_Spain_2020 <- process_data_variant_nation_year_2020(data_Variant_Spain_2020)
+data_Variant_Spain_2020 <- elabora_dati(data_Variant_Spain_2020)
+
+
+# Visualizzare i data frame processati
+print(db_Spain_2020)
+print(db_vaccine_Spain_2020)
+print(data_Variant_Spain_2020)
+
+# 2021
+db_Spain_2021 <- process_db_nation_year(db_Spain_2021)
+db_vaccine_Spain_2021 <- process_db_vaccine_nation_year(db_vaccine_Spain_2021)
+data_Variant_Spain_2021 <- process_data_variant_nation_year_2021(data_Variant_Spain_2021)
+data_Variant_Spain_2021 <- elabora_dati(data_Variant_Spain_2021)
+
+# Visualizzare i data frame processati
+print(db_Spain_2021)
+print(db_vaccine_Spain_2021)
+print(data_Variant_Spain_2021)
+
+# 2022
+db_Spain_2022 <- process_db_nation_year(db_Spain_2022)
+db_vaccine_Spain_2022 <- process_db_vaccine_nation_year(db_vaccine_Spain_2022)
+data_Variant_Spain_2022 <- process_data_variant_nation_year_2022(data_Variant_Spain_2022)
+data_Variant_Spain_2022 <- elabora_dati(data_Variant_Spain_2022)
+
+# Visualizzare i data frame processati
+print(db_Spain_2022)
+print(db_vaccine_Spain_2022)
+print(data_Variant_Spain_2022)
+
+# MERGING
+
+# 2020
+merged_Spain_2020 <- cbind(db_Spain_2020, db_vaccine_Spain_2020)
+merged_Spain_2020 <- cbind(merged_Spain_2020, data_Variant_Spain_2020)
+
+# 2021
+merged_Spain_2021 <- cbind(db_Spain_2021, db_vaccine_Spain_2021)
+merged_Spain_2021 <- cbind(merged_Spain_2021, data_Variant_Spain_2021)
+
+# 2022
+merged_Spain_2022 <- cbind(db_Spain_2022, db_vaccine_Spain_2022)
+merged_Spain_2022 <- cbind(merged_Spain_2022, data_Variant_Spain_2022)
+
+```
+
+# FRANCE
+```{r setup, include=FALSE}
+# 2020
+db_France_2020 <- process_db_nation_year(db_France_2020)
+db_vaccine_France_2020 <- process_db_vaccine_nation_year(db_vaccine_France_2020)
+data_Variant_France_2020 <- process_data_variant_nation_year_2020(data_Variant_France_2020)
+data_Variant_France_2020 <- elabora_dati(data_Variant_France_2020)
+
+# Visualizzare i data frame processati
+print(db_France_2020)
+print(db_vaccine_France_2020)
+print(data_Variant_France_2020)
+
+# 2021
+db_France_2021 <- process_db_nation_year(db_France_2021)
+db_vaccine_France_2021 <- process_db_vaccine_nation_year(db_vaccine_France_2021)
+data_Variant_France_2021 <- process_data_variant_nation_year_2021(data_Variant_France_2021)
+data_Variant_France_2021 <- elabora_dati(data_Variant_France_2021)
+
+# Visualizzare i data frame processati
+print(db_France_2021)
+print(db_vaccine_France_2021)
+print(data_Variant_France_2021)
+
+# 2022
+db_France_2022 <- process_db_nation_year(db_France_2022)
+db_vaccine_France_2022 <- process_db_vaccine_nation_year(db_vaccine_France_2022)
+data_Variant_France_2022 <- process_data_variant_nation_year_2022(data_Variant_France_2022)
+data_Variant_France_2022 <- elabora_dati(data_Variant_France_2022)
+
+# Visualizzare i data frame processati
+print(db_France_2022)
+print(db_vaccine_France_2022)
+print(data_Variant_France_2022)
+
+
+# MERGING
+
+# 2020
+merged_France_2020 <- cbind(db_France_2020, db_vaccine_France_2020)
+merged_France_2020 <- cbind(merged_France_2020, data_Variant_France_2020)
+
+# 2021
+merged_France_2021 <- cbind(db_France_2021, db_vaccine_France_2021)
+merged_France_2021 <- cbind(merged_France_2021, data_Variant_France_2021)
+
+# 2022
+merged_France_2022 <- cbind(db_France_2022, db_vaccine_France_2022)
+merged_France_2022 <- cbind(merged_France_2022, data_Variant_France_2022)
+```
+
+# NETHERLANDS
+```{r setup, include=FALSE}
+# 2020
+db_Netherlands_2020 <- process_db_nation_year(db_Netherlands_2020)
+db_vaccine_Netherlands_2020 <- process_db_vaccine_nation_year(db_vaccine_Netherlands_2020)
+data_Variant_Netherlands_2020 <- process_data_variant_nation_year_2020(data_Variant_Netherlands_2020)
+data_Variant_Netherlands_2020 <- elabora_dati(data_Variant_Netherlands_2020)
+
+# Visualizzare i data frame processati
+print(db_Netherlands_2020)
+print(db_vaccine_Netherlands_2020)
+print(data_Variant_Netherlands_2020)
+
+# 2021
+db_Netherlands_2021 <- process_db_nation_year(db_Netherlands_2021)
+db_vaccine_Netherlands_2021 <- process_db_vaccine_nation_year(db_vaccine_Netherlands_2021)
+data_Variant_Netherlands_2021 <- process_data_variant_nation_year_2021(data_Variant_Netherlands_2021)
+data_Variant_Netherlands_2021 <- elabora_dati(data_Variant_Netherlands_2021)
+
+# Visualizzare i data frame processati
+print(db_Netherlands_2021)
+print(db_vaccine_Netherlands_2021)
+print(data_Variant_Netherlands_2021)
+
+# 2022
+db_Netherlands_2022 <- process_db_nation_year(db_Netherlands_2022)
+db_vaccine_Netherlands_2022 <- process_db_vaccine_nation_year(db_vaccine_Netherlands_2022)
+data_Variant_Netherlands_2022 <- process_data_variant_nation_year_2022(data_Variant_Netherlands_2022)
+data_Variant_Netherlands_2022 <- elabora_dati(data_Variant_Netherlands_2022)
+
+# Visualizzare i data frame processati
+print(db_Netherlands_2022)
+print(db_vaccine_Netherlands_2022)
+print(data_Variant_Netherlands_2022)
+
+# 2020
+merged_Netherlands_2020 <- cbind(cbind(db_Netherlands_2020, db_vaccine_Netherlands_2020), data_Variant_Netherlands_2020)
+
+# 2021
+merged_Netherlands_2021 <- cbind(cbind(db_Netherlands_2021, db_vaccine_Netherlands_2021), data_Variant_Netherlands_2021)
+
+# 2022
+merged_Netherlands_2022 <- cbind(cbind(db_Netherlands_2022, db_vaccine_Netherlands_2022), data_Variant_Netherlands_2022)
+
+```
+
+# SLOVENIA
+```{r setup, include=FALSE}
+# 2020
+db_Slovenia_2020 <- process_db_nation_year(db_Slovenia_2020)
+db_vaccine_Slovenia_2020 <- process_db_vaccine_nation_year(db_vaccine_Slovenia_2020)
+data_Variant_Slovenia_2020 <- process_data_variant_nation_year_2020(data_Variant_Slovenia_2020)
+data_Variant_Slovenia_2020 <- elabora_dati(data_Variant_Slovenia_2020)
+
+# Visualizzare i data frame processati
+print(db_Slovenia_2020)
+print(db_vaccine_Slovenia_2020)
+print(data_Variant_Slovenia_2020)
+
+# 2021
+db_Slovenia_2021 <- process_db_nation_year(db_Slovenia_2021)
+db_vaccine_Slovenia_2021 <- process_db_vaccine_nation_year(db_vaccine_Slovenia_2021)
+data_Variant_Slovenia_2021 <- process_data_variant_nation_year_2021(data_Variant_Slovenia_2021)
+data_Variant_Slovenia_2021 <- elabora_dati(data_Variant_Slovenia_2021)
+
+# Visualizzare i data frame processati
+print(db_Slovenia_2021)
+print(db_vaccine_Slovenia_2021)
+print(data_Variant_Slovenia_2021)
+
+# 2022
+db_Slovenia_2022 <- process_db_nation_year(db_Slovenia_2022)
+db_vaccine_Slovenia_2022 <- process_db_vaccine_nation_year(db_vaccine_Slovenia_2022)
+data_Variant_Slovenia_2022 <- process_data_variant_nation_year_2022(data_Variant_Slovenia_2022)
+data_Variant_Slovenia_2022 <- elabora_dati(data_Variant_Slovenia_2022)
+
+# Visualizzare i data frame processati
+print(db_Slovenia_2022)
+print(db_vaccine_Slovenia_2022)
+print(data_Variant_Slovenia_2022)
+
+# merging
+# 2020
+merged_Slovenia_2020 <- cbind(cbind(db_Slovenia_2020, db_vaccine_Slovenia_2020), data_Variant_Slovenia_2020)
+
+# 2021
+merged_Slovenia_2021 <- cbind(cbind(db_Slovenia_2021, db_vaccine_Slovenia_2021), data_Variant_Slovenia_2021)
+
+# 2022
+merged_Slovenia_2022 <- cbind(cbind(db_Slovenia_2022, db_vaccine_Slovenia_2022), data_Variant_Slovenia_2022)
+```
+
+# LATVIA
+```{r setup, include=FALSE}
+# 2020
+db_Latvia_2020 <- process_db_nation_year(db_Latvia_2020)
+db_vaccine_Latvia_2020 <- process_db_vaccine_nation_year(db_vaccine_Latvia_2020)
+data_Variant_Latvia_2020 <- process_data_variant_nation_year_2020(data_Variant_Latvia_2020)
+data_Variant_Latvia_2020 <- elabora_dati(data_Variant_Latvia_2020)
+
+# Visualizzare i data frame processati
+print(db_Latvia_2020)
+print(db_vaccine_Latvia_2020)
+print(data_Variant_Latvia_2020)
+
+# 2021
+db_Latvia_2021 <- process_db_nation_year(db_Latvia_2021)
+db_vaccine_Latvia_2021 <- process_db_vaccine_nation_year(db_vaccine_Latvia_2021)
+data_Variant_Latvia_2021 <- process_data_variant_nation_year_2021(data_Variant_Latvia_2021)
+data_Variant_Latvia_2021 <- elabora_dati(data_Variant_Latvia_2021)
+
+# Visualizzare i data frame processati
+print(db_Latvia_2021)
+print(db_vaccine_Latvia_2021)
+print(data_Variant_Latvia_2021)
+
+# 2022
+db_Latvia_2022 <- process_db_nation_year(db_Latvia_2022)
+db_vaccine_Latvia_2022 <- process_db_vaccine_nation_year(db_vaccine_Latvia_2022)
+data_Variant_Latvia_2022 <- process_data_variant_nation_year_2022(data_Variant_Latvia_2022)
+data_Variant_Latvia_2022 <- elabora_dati(data_Variant_Latvia_2022)
+
+# Visualizzare i data frame processati
+print(db_Latvia_2022)
+print(db_vaccine_Latvia_2022)
+print(data_Variant_Latvia_2022)
+
+# MERGING 
+# 2020
+merged_Latvia_2020 <- cbind(cbind(db_Latvia_2020, db_vaccine_Latvia_2020), data_Variant_Latvia_2020)
+
+# 2021
+merged_Latvia_2021 <- cbind(cbind(db_Latvia_2021, db_vaccine_Latvia_2021), data_Variant_Latvia_2021)
+
+# 2022
+merged_Latvia_2022 <- cbind(cbind(db_Latvia_2022, db_vaccine_Latvia_2022), data_Variant_Latvia_2022)
+```
+
+# IRELAND
+```{r setup, include=FALSE}
+# 2020
+db_Ireland_2020 <- process_db_nation_year(db_Ireland_2020)
+db_vaccine_Ireland_2020 <- process_db_vaccine_nation_year(db_vaccine_Ireland_2020)
+data_Variant_Ireland_2020 <- process_data_variant_nation_year_2020(data_Variant_Ireland_2020)
+data_Variant_Ireland_2020<- elabora_dati(data_Variant_Ireland_2020)
+
+# Visualizzare i data frame processati
+print(db_Ireland_2020)
+print(db_vaccine_Ireland_2020)
+print(data_Variant_Ireland_2020)
+# 2021
+db_Ireland_2021 <- process_db_nation_year(db_Ireland_2021)
+db_vaccine_Ireland_2021 <- process_db_vaccine_nation_year(db_vaccine_Ireland_2021)
+data_Variant_Ireland_2021 <- process_data_variant_nation_year_2021(data_Variant_Ireland_2021)
+data_Variant_Ireland_2021<- elabora_dati(data_Variant_Ireland_2021)
+
+# Visualizzare i data frame processati
+print(db_Ireland_2021)
+print(db_vaccine_Ireland_2021)
+print(data_Variant_Ireland_2021)
+
+# 2022
+db_Ireland_2022 <- process_db_nation_year(db_Ireland_2022)
+db_vaccine_Ireland_2022 <- process_db_vaccine_nation_year(db_vaccine_Ireland_2022)
+data_Variant_Ireland_2022 <- process_data_variant_nation_year_2022(data_Variant_Ireland_2022)
+data_Variant_Ireland_2022<- elabora_dati(data_Variant_Ireland_2022)
+
+# Visualizzare i data frame processati
+print(db_Ireland_2022)
+print(db_vaccine_Ireland_2022)
+print(data_Variant_Ireland_2022)
+
+# MERGING
+# 2020
+merged_Ireland_2020 <- cbind(cbind(db_Ireland_2020, db_vaccine_Ireland_2020), data_Variant_Ireland_2020)
+
+# 2021
+merged_Ireland_2021 <- cbind(cbind(db_Ireland_2021, db_vaccine_Ireland_2021), data_Variant_Ireland_2021)
+
+# 2022
+merged_Ireland_2022 <- cbind(cbind(db_Ireland_2022, db_vaccine_Ireland_2022), data_Variant_Ireland_2022)
+```
+
+# GREECE
+```{r setup, include=FALSE}
+# 2020
+db_Greece_2020 <- process_db_nation_year(db_Greece_2020)
+db_vaccine_Greece_2020 <- process_db_vaccine_nation_year(db_vaccine_Greece_2020)
+db_vaccine_Greece_2020[db_vaccine_Greece_2020 == 0] <- NA
+data_Variant_Greece_2020 <- process_data_variant_nation_year_2020(data_Variant_Greece_2020)
+data_Variant_Greece_2020<- elabora_dati(data_Variant_Greece_2020)
+
+# Visualizzare i data frame processati
+print(db_Greece_2020)
+print(db_vaccine_Greece_2020)
+print(data_Variant_Greece_2020)
+
+# 2021
+db_Greece_2021 <- process_db_nation_year(db_Greece_2021)
+db_vaccine_Greece_2021 <- process_db_vaccine_nation_year(db_vaccine_Greece_2021)
+db_vaccine_Greece_2021[db_vaccine_Greece_2021 == 0] <- NA
+data_Variant_Greece_2021 <- process_data_variant_nation_year_2021(data_Variant_Greece_2021)
+data_Variant_Greece_2021<- elabora_dati(data_Variant_Greece_2021)
+
+# Visualizzare i data frame processati
+print(db_Greece_2021)
+print(db_vaccine_Greece_2021)
+print(data_Variant_Greece_2021)
+
+# 2021
+db_Greece_2022 <- process_db_nation_year(db_Greece_2022)
+db_vaccine_Greece_2022 <- process_db_vaccine_nation_year(db_vaccine_Greece_2022)
+db_vaccine_Greece_2022[db_vaccine_Greece_2022 == 0] <- NA
+data_Variant_Greece_2022 <- process_data_variant_nation_year_2022(data_Variant_Greece_2022)
+data_Variant_Greece_2022<- elabora_dati(data_Variant_Greece_2022)
+
+# Visualizzare i data frame processati
+print(db_Greece_2022)
+print(db_vaccine_Greece_2022)
+print(data_Variant_Greece_2022)
+
+# MERGING
+# 2020
+merged_Greece_2020 <- cbind(cbind(db_Greece_2020, db_vaccine_Greece_2020),data_Variant_Greece_2020)
+
+# 2021
+merged_Greece_2021 <- cbind(cbind(db_Greece_2021, db_vaccine_Greece_2021), data_Variant_Greece_2021)
+
+# 2022
+merged_Greece_2022 <- cbind(cbind(db_Greece_2022, db_vaccine_Greece_2022), data_Variant_Greece_2022)
+```
+
+# ESTONIA
+```{r setup, include=FALSE}
+# 2020
+db_Estonia_2020 <- process_db_nation_year(db_Estonia_2020)
+db_vaccine_Estonia_2020 <- process_db_vaccine_nation_year(db_vaccine_Estonia_2020)
+data_Variant_Estonia_2020 <- process_data_variant_nation_year_2020(data_Variant_Estonia_2020)
+data_Variant_Estonia_2020<- elabora_dati(data_Variant_Estonia_2020)
+
+
+# Visualizzare i data frame processati
+print(db_Estonia_2020)
+print(db_vaccine_Estonia_2020)
+print(data_Variant_Estonia_2020)
+
+# 2021
+db_Estonia_2021 <- process_db_nation_year(db_Estonia_2021)
+db_vaccine_Estonia_2021 <- process_db_vaccine_nation_year(db_vaccine_Estonia_2021)
+data_Variant_Estonia_2021 <- process_data_variant_nation_year_2021(data_Variant_Estonia_2021)
+data_Variant_Estonia_2021<- elabora_dati(data_Variant_Estonia_2021)
+
+# Visualizzare i data frame processati
+print(db_Estonia_2021)
+print(db_vaccine_Estonia_2021)
+print(data_Variant_Estonia_2021)
+
+# 2022
+db_Estonia_2022 <- process_db_nation_year(db_Estonia_2022)
+db_vaccine_Estonia_2022 <- process_db_vaccine_nation_year(db_vaccine_Estonia_2022)
+data_Variant_Estonia_2022 <- process_data_variant_nation_year_2022(data_Variant_Estonia_2022)
+data_Variant_Estonia_2022<- elabora_dati(data_Variant_Estonia_2022)
+
+# Visualizzare i data frame processati
+print(db_Estonia_2022)
+print(db_vaccine_Estonia_2022)
+print(data_Variant_Estonia_2022)
+
+# MERGING
+# 2020
+merged_Estonia_2020 <- cbind(cbind(db_Estonia_2020, db_vaccine_Estonia_2020), data_Variant_Estonia_2020)
+
+# 2021
+merged_Estonia_2021 <- cbind(cbind(db_Estonia_2021, db_vaccine_Estonia_2021), data_Variant_Estonia_2021)
+
+# 2022
+merged_Estonia_2022 <- cbind(cbind(db_Estonia_2022, db_vaccine_Estonia_2022), data_Variant_Estonia_2022)
+
+```
+
+# CYPRUS
+```{r setup, include=FALSE}
+#2020
+db_Cyprus_2020 <- process_db_nation_year(db_Cyprus_2020)
+db_vaccine_Cyprus_2020 <- process_db_vaccine_nation_year(db_vaccine_Cyprus_2020)
+data_Variant_Cyprus_2020 <- process_data_variant_nation_year_2020(data_Variant_Cyprus_2020)
+data_Variant_Cyprus_2020<- elabora_dati(data_Variant_Cyprus_2020)
+
+# Visualizzare i data frame processati
+print(db_Cyprus_2020)
+print(db_vaccine_Cyprus_2020)
+print(data_Variant_Cyprus_2020)
+
+#2021
+db_Cyprus_2021 <- process_db_nation_year(db_Cyprus_2021)
+db_vaccine_Cyprus_2021 <- process_db_vaccine_nation_year(db_vaccine_Cyprus_2021)
+data_Variant_Cyprus_2021 <- process_data_variant_nation_year_2021(data_Variant_Cyprus_2021)
+data_Variant_Cyprus_2021<- elabora_dati(data_Variant_Cyprus_2021)
+
+# Visualizzare i data frame processati
+print(db_Cyprus_2021)
+print(db_vaccine_Cyprus_2021)
+print(data_Variant_Cyprus_2021)
+
+#2022
+db_Cyprus_2022 <- process_db_nation_year(db_Cyprus_2022)
+db_vaccine_Cyprus_2022 <- process_db_vaccine_nation_year(db_vaccine_Cyprus_2022)
+data_Variant_Cyprus_2022 <- process_data_variant_nation_year_2022(data_Variant_Cyprus_2022)
+data_Variant_Cyprus_2022<- elabora_dati(data_Variant_Cyprus_2022)
+
+# Visualizzare i data frame processati
+print(db_Cyprus_2022)
+print(db_vaccine_Cyprus_2022)
+print(data_Variant_Cyprus_2022)
+
+# MERGING
+# 2020
+merged_Cyprus_2020 <- cbind(cbind(db_Cyprus_2020, db_vaccine_Cyprus_2020), data_Variant_Cyprus_2020)
+
+# 2021
+merged_Cyprus_2021 <- cbind(cbind(db_Cyprus_2021, db_vaccine_Cyprus_2021), data_Variant_Cyprus_2021)
+
+# 2022
+merged_Cyprus_2022 <- cbind(cbind(db_Cyprus_2022, db_vaccine_Cyprus_2022), data_Variant_Cyprus_2022)
+```
+
+# ANALYSIS 
+
+# STRINGENCY INDEX 
+```{r setup, include=FALSE}
+# Stringency Index 2020
+countryDataSI_2020 <- data.frame()
+countryDataSI_2020 <- buildCountryData3_2020(merged_Spain_2020,Governement_stringecy_index_oxford_spain_2020,countryDataSI_2020, 1)
+countryDataSI_2020 <- buildCountryData3_2020(merged_France_2020,Governement_stringecy_index_oxford_france_2020,countryDataSI_2020, 2)
+countryDataSI_2020 <- buildCountryData3_2020(merged_Netherlands_2020,Governement_stringecy_index_oxford_netherlands_2020,countryDataSI_2020, 3)
+countryDataSI_2020 <- buildCountryData3_2020(merged_Latvia_2020,Governement_stringecy_index_oxford_latvia_2020,countryDataSI_2020, 4)
+countryDataSI_2020 <- buildCountryData3_2020(merged_Slovenia_2020,Governement_stringecy_index_oxford_slovenia_2020,countryDataSI_2020, 5)
+countryDataSI_2020 <- buildCountryData3_2020(merged_Greece_2020,Governement_stringecy_index_oxford_greece_2020,countryDataSI_2020, 6)
+countryDataSI_2020 <- buildCountryData3_2020(merged_Ireland_2020,Governement_stringecy_index_oxford_ireland_2020,countryDataSI_2020, 7)
+countryDataSI_2020 <- buildCountryData3_2020(merged_Cyprus_2020,Governement_stringecy_index_oxford_cyprus_2020, countryDataSI_2020, 8)
+countryDataSI_2020 <- buildCountryData3_2020(merged_Estonia_2020,Governement_stringecy_index_oxford_estonia_2020, countryDataSI_2020, 9)
+
+# Calcolare la percentuale di dati mancanti per ogni colonna
+missing_data_percentage <- colMeans(is.na(countryDataSI_2020)) * 100
+
+# Stampare la percentuale di dati mancanti per ogni colonna
+print(missing_data_percentage)
+
+# Stringency Index 2021
+countryDataSI_2021 <- data.frame()
+countryDataSI_2021 <- buildCountryData3_2021(merged_Spain_2021, Governement_stringecy_index_oxford_spain_2021, countryDataSI_2021, 1)
+countryDataSI_2021 <- buildCountryData3_2021(merged_France_2021, Governement_stringecy_index_oxford_france_2021, countryDataSI_2021, 2)
+countryDataSI_2021 <- buildCountryData3_2021(merged_Netherlands_2021, Governement_stringecy_index_oxford_netherlands_2021, countryDataSI_2021, 3)
+countryDataSI_2021 <- buildCountryData3_2021(merged_Latvia_2021, Governement_stringecy_index_oxford_latvia_2021, countryDataSI_2021, 4)
+countryDataSI_2021 <- buildCountryData3_2021(merged_Slovenia_2021, Governement_stringecy_index_oxford_slovenia_2021, countryDataSI_2021, 5)
+countryDataSI_2021 <- buildCountryData3_2021(merged_Greece_2021, Governement_stringecy_index_oxford_greece_2021, countryDataSI_2021, 6)
+countryDataSI_2021 <- buildCountryData3_2021(merged_Ireland_2021, Governement_stringecy_index_oxford_ireland_2021, countryDataSI_2021, 7)
+countryDataSI_2021 <- buildCountryData3_2021(merged_Cyprus_2021, Governement_stringecy_index_oxford_cyprus_2021, countryDataSI_2021, 8)
+countryDataSI_2021 <- buildCountryData3_2021(merged_Estonia_2021, Governement_stringecy_index_oxford_estonia_2021, countryDataSI_2021, 9)
+
+# Calcolare la percentuale di dati mancanti per ogni colonna
+missing_data_percentage <- colMeans(is.na(countryDataSI_2021)) * 100
+
+# Stampare la percentuale di dati mancanti per ogni colonna
+print(missing_data_percentage)
+
+
+# Stringency Index 2022
+countryDataSI_2022 <- data.frame()
+countryDataSI_2022 <- buildCountryData3_2022(merged_Spain_2022, Governement_stringecy_index_oxford_spain_2022, countryDataSI_2022, 1)
+countryDataSI_2022 <- buildCountryData3_2022(merged_France_2022, Governement_stringecy_index_oxford_france_2022, countryDataSI_2022, 2)
+countryDataSI_2022 <- buildCountryData3_2022(merged_Netherlands_2022, Governement_stringecy_index_oxford_Netherlands_2022, countryDataSI_2022, 3)
+countryDataSI_2022 <- buildCountryData3_2022(merged_Latvia_2022, Governement_stringecy_index_oxford_latvia_2022, countryDataSI_2022, 4)
+countryDataSI_2022 <- buildCountryData3_2022(merged_Slovenia_2022, Governement_stringecy_index_oxford_slovenia_2022, countryDataSI_2022, 5)
+countryDataSI_2022 <- buildCountryData3_2022(merged_Greece_2022, Governement_stringecy_index_oxford_greece_2022, countryDataSI_2022, 6)
+countryDataSI_2022 <- buildCountryData3_2022(merged_Ireland_2022, Governement_stringecy_index_oxford_ireland_2022, countryDataSI_2022, 7)
+countryDataSI_2022 <- buildCountryData3_2022(merged_Cyprus_2022, Governement_stringecy_index_oxford_cyprus_2022, countryDataSI_2022, 8)
+countryDataSI_2022 <- buildCountryData3_2022(merged_Estonia_2022, Governement_stringecy_index_oxford_estonia_2022, countryDataSI_2022, 9)
+
+# Calcolare la percentuale di dati mancanti per ogni colonna
+missing_data_percentage <- colMeans(is.na(countryDataSI_2022)) * 100
+
+# Stampare la percentuale di dati mancanti per ogni colonna
+print(missing_data_percentage)
+```
+
+# MODEL STRINGENCY INDEX 2020
+```{r setup, include=FALSE}
+mlvar_SI_2020_1 <- mlVAR(data = countryDataSI_2020, 
+                   vars = c("I_t", "nuoviCasi_t", "admHosp_t", "admICU_t", "morti_t","Fdose", "Sdose", "Bdose", "Alpha", "Beta", "Delta", "Zeta"),
+                   idvar = "ID",
+                   lags = 1,
+                   temporal = "orthogonal" )
+
+mlvar_SI_2020_2 <- mlVAR(data = countryDataSI_2020, 
+                   vars = c("I_t", "nuoviCasi_t", "admHosp_t", "admICU_t", "morti_t","Fdose", "Sdose", "Bdose", "Alpha", "Beta", "Delta", "Zeta"),
+                   idvar = "ID",
+                   lags = 2,
+                   temporal = "orthogonal" )
+
+mlvar_SI_2020_3 <- mlVAR(data = countryDataSI_2020, 
+                   vars = c("I_t", "nuoviCasi_t", "admHosp_t", "admICU_t", "morti_t","Fdose", "Sdose", "Bdose", "Alpha", "Beta", "Delta", "Zeta"),
+                   idvar = "ID",
+                   lags = 3,
+                   temporal = "orthogonal" )
+```
+
+# MODEL STRINGENCY INDEX 2021
+```{r setup, include=FALSE}
+mlvar_SI_2021_1 <- mlVAR(data = countryDataSI_2021, 
+                   vars = c("I_t", "nuoviCasi_t", "admHosp_t", "admICU_t", "morti_t","Fdose", "Sdose", "Bdose", "Alpha", "Beta", "Delta", "Zeta", "Theta", "Gamma", "Epsilon", "Eta", "Kappa", "Iota", "Mu", "Lambda", "GH490R", "Omicron"),
+                   idvar = "ID",
+                   lags = 1,
+                   temporal = "orthogonal" )
+
+mlvar_SI_2021_2 <- mlVAR(data = countryDataSI_2021, 
+                   vars = c("I_t", "nuoviCasi_t", "admHosp_t", "admICU_t", "morti_t","Fdose", "Sdose", "Bdose", "Alpha", "Beta", "Delta", "Zeta", "Theta", "Gamma", "Epsilon", "Eta", "Kappa", "Iota", "Mu", "Lambda", "GH490R", "Omicron"),
+                   idvar = "ID",
+                   lags = 2,
+                   temporal = "orthogonal" )
+
+mlvar_SI_2021_3 <- mlVAR(data = countryDataSI_2021, 
+                   vars = c("I_t", "nuoviCasi_t", "admHosp_t", "admICU_t", "morti_t","Fdose", "Sdose", "Bdose", "Alpha", "Beta", "Delta", "Zeta", "Theta", "Gamma", "Epsilon", "Eta", "Kappa", "Iota", "Mu", "Lambda", "GH490R", "Omicron"),
+                   idvar = "ID",
+                   lags = 3,
+                   temporal = "orthogonal" )
+
+```
+
+# MODEL STRINGENCY INDEX 2022
+```{r setup, include=FALSE}
+mlvar_SI_2022_1 <- mlVAR(data = countryDataSI_2022, 
+                   vars = c("I_t", "nuoviCasi_t", "admHosp_t", "admICU_t", "morti_t","Fdose", "Sdose", "Bdose", "Delta","GH490R", "Omicron", "Alpha", "BA.2.75", "CH.1.1", "XBB", "XBB.1.5"),
+                   idvar = "ID",
+                   lags = 1,
+                   temporal = "orthogonal" )
+
+mlvar_SI_2022_2 <- mlVAR(data = countryDataSI_2022, 
+                   vars = c("I_t", "nuoviCasi_t", "admHosp_t", "admICU_t", "morti_t","Fdose", "Sdose", "Bdose", "Delta","GH490R", "Omicron", "Alpha", "BA.2.75", "CH.1.1", "XBB", "XBB.1.5"),
+                   idvar = "ID",
+                   lags = 2,
+                   temporal = "orthogonal" )
+
+mlvar_SI_2022_3 <- mlVAR(data = countryDataSI_2022, 
+                   vars = c("I_t", "nuoviCasi_t", "admHosp_t", "admICU_t", "morti_t","Fdose", "Sdose", "Bdose", "Delta","GH490R", "Omicron", "Alpha", "BA.2.75", "CH.1.1", "XBB", "XBB.1.5"),
+                   idvar = "ID",
+                   lags = 3,
+                   temporal = "orthogonal" )
+
+```
+
+# COMPARISON IN LAG
+```{r setup, include=FALSE}
+mlVARcompare(mlvar_SI_2020_1,mlvar_SI_2020_2,mlvar_SI_2020_3)
+
+mlVARcompare(mlvar_SI_2021_1,mlvar_SI_2021_2,mlvar_SI_2021_3)
+
+mlVARcompare(mlvar_SI_2022_1,mlvar_SI_2022_2,mlvar_SI_2022_3)
+
+```
+
+# RESULTS GRAPHICS LAGS 
+```{r setup, include=FALSE}
+# Use str() to understand the structure of the results
+str(mlVARcompare(mlvar_SI_2020_1, mlvar_SI_2020_2, mlvar_SI_2020_3))
+
+# Example to extract AIC and BIC for a specific variable name, adjust as needed
+results_2020 <- mlVARcompare(mlvar_SI_2020_1, mlvar_SI_2020_2, mlvar_SI_2020_3)
+aic_2020 <- sapply(results_2020, function(x) x$aic)  # Assuming 'aic' is accessible directly
+bic_2020 <- sapply(results_2020, function(x) x$bic)
+
+results_2021 <- mlVARcompare(mlvar_SI_2021_1, mlvar_SI_2021_2, mlvar_SI_2021_3)
+aic_2021 <- sapply(results_2021, function(x) x$aic)
+bic_2021 <- sapply(results_2021, function(x) x$bic)
+
+results_2022 <- mlVARcompare(mlvar_SI_2022_1, mlvar_SI_2022_2, mlvar_SI_2022_3)
+aic_2022 <- sapply(results_2022, function(x) x$aic)
+bic_2022 <- sapply(results_2022, function(x) x$bic)
+```
+
+# 2020
+```{r setup, include=FALSE}
+str(aic_2020)
+# Converting matrix to data frame for plotting, if necessary
+df <- as.data.frame(aic_2020)
+
+# Adding row and column names if not already present
+names(df) <- c("I_t", "nuoviCasi_t", "admHosp_t", "admICU_t", "morti_t",
+               "Fdose", "Sdose", "Bdose", "Alpha", "Beta", "Delta", "Zeta")
+df$Model <- factor(1:nrow(df))
+
+# Melting the data frame for ggplot2 if it's in wide format
+df_melted <- melt(df, id.vars = "Model")
+
+# Create a plot
+ggplot(df_melted, aes(x = variable, y = value, fill = Model)) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  theme_minimal() +
+  labs(title = "Comparison of Model lags AIC 2020",
+       x = "Variable",
+       y = "Coefficient",
+       fill = "Model") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for readability
+```
+
+# 2021
+```{r setup, include=FALSE}
+str(aic_2021)
+# Converting matrix to data frame for plotting, if necessary
+df <- as.data.frame(aic_2021)
+
+# Adding row and column names if not already present
+names(df) <- c("I_t", "nuoviCasi_t", "admHosp_t", "admICU_t", "morti_t","Fdose", "Sdose", "Bdose", "Alpha", "Beta", "Delta", "Zeta", "Theta", "Gamma", "Epsilon", "Eta", "Kappa", "Iota", "Mu", "Lambda", "GH490R", "Omicron")
+df$Model <- factor(1:nrow(df))
+
+# Load required packages
+library(ggplot2)
+library(reshape2)  # If needed for melting the data frame
+
+# Melting the data frame for ggplot2 if it's in wide format
+df_melted <- melt(df, id.vars = "Model")
+
+# Create a plot
+ggplot(df_melted, aes(x = variable, y = value, fill = Model)) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  theme_minimal() +
+  labs(title = "Comparison of Model lags AIC 2021",
+       x = "Variable",
+       y = "Coefficient",
+       fill = "Model") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for readability
+```
+
+# 2022
+```{r setup, include=FALSE}
+str(aic_2022)
+# Converting matrix to data frame for plotting, if necessary
+df <- as.data.frame(aic_2022)
+
+# Adding row and column names if not already present
+names(df) <- c("I_t", "nuoviCasi_t", "admHosp_t", "admICU_t", "morti_t","Fdose", "Sdose", "Bdose", "Delta","GH490R", "Omicron", "Alpha", "BA.2.75", "CH.1.1", "XBB", "XBB.1.5")
+df$Model <- factor(1:nrow(df))
+
+# Load required packages
+library(ggplot2)
+library(reshape2)  # If needed for melting the data frame
+
+# Melting the data frame for ggplot2 if it's in wide format
+df_melted <- melt(df, id.vars = "Model")
+
+# Create a plot
+ggplot(df_melted, aes(x = variable, y = value, fill = Model)) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  theme_minimal() +
+  labs(title = "Comparison of Model lags AIC 2022",
+       x = "Variable",
+       y = "Coefficient",
+       fill = "Model") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for readability
+```
+
+# RESULTS 
+
+# 2020
+# 2020 1 DELAY
+```{r setup, include=FALSE}
+# 2020 1 DELAY 
+mlvar_SI_2020_1$model
+summary(mlvar_SI_2020_1$output$temporal$I_t)
+```
+
+# RANDOM AND FIXED 
+
+```{r setup, include=FALSE}
+# Extract random effects
+ranef_data <- ranef(mlvar_SI_2020_1$output$temporal$I_t)
+
+# Extract fixed effects
+fixef_data <- fixef(mlvar_SI_2020_1$output$temporal$I_t)
+```
+
+# HEATMPAP BETA MEAN 
+
+```{r setup, include=FALSE}
+beta_mean <- mlvar_SI_2020_1[["results"]][["Beta"]][["mean"]]
+# Convert vectors to a data frame
+df <- data.frame(beta_mean)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta Mean 2020 - lags 1",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = "black")
+
+```
+
+# HEATMAP BETA P-VALUE
+
+```{r setup, include=FALSE}
+beta_p <- mlvar_SI_2020_1[["results"]][["Beta"]][["P"]]
+
+# Convert vectors to a data frame
+df <- data.frame(beta_p)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Custom function to set text color based on significance
+number_color_fun <- function(x) {
+  ifelse(x < 0.05, "red", "black")
+}
+
+# Apply custom function to the matrix
+number_colors <- matrix(number_color_fun(clean_matrix), nrow = nrow(clean_matrix), ncol = ncol(clean_matrix))
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta P-values 2020 - lags 1",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = number_colors)
+
+```
+
+# HEATMAP BETA SE
+
+```{r setup, include=FALSE}
+beta_se <- mlvar_SI_2020_1[["results"]][["Beta"]][["SE"]]
+
+df <- data.frame(beta_se)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta SE 2020 - lags 1",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = "black")
+
+```
+
+
+# 2020 2 DELAY
+```{r setup, include=FALSE}
+# 2020 2 DELAY 
+mlvar_SI_2020_2$model
+summary(mlvar_SI_2020_2$output$temporal$I_t)
+```
+
+# RANDOM AND FIXED 
+
+```{r setup, include=FALSE}
+# Extract random effects
+ranef_data <- ranef(mlvar_SI_2020_2$output$temporal$I_t)
+
+# Extract fixed effects
+fixef_data <- fixef(mlvar_SI_2020_2$output$temporal$I_t)
+```
+
+# HEATMPAP BETA MEAN
+
+```{r setup, include=FALSE}
+beta_mean <- mlvar_SI_2020_2[["results"]][["Beta"]][["mean"]]
+# Convert vectors to a data frame
+df <- data.frame(beta_mean)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta Mean 2020 - lags 2",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = "black")
+
+```
+
+# HEATMAP BETA P-VALUE
+
+```{r setup, include=FALSE}
+beta_p <- mlvar_SI_2020_2[["results"]][["Beta"]][["P"]]
+
+# Convert vectors to a data frame
+df <- data.frame(beta_p)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Custom function to set text color based on significance
+number_color_fun <- function(x) {
+  ifelse(x < 0.05, "red", "black")
+}
+
+# Apply custom function to the matrix
+number_colors <- matrix(number_color_fun(clean_matrix), nrow = nrow(clean_matrix), ncol = ncol(clean_matrix))
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta P-values 2020 - lags 2",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = number_colors)
+
+```
+
+# HEATMAP BETA SE
+
+```{r setup, include=FALSE}
+beta_se <- mlvar_SI_2020_2[["results"]][["Beta"]][["SE"]]
+
+df <- data.frame(beta_se)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta SE 2020 - lags 2",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = "black")
+
+```
+
+# 2020 3 DELAY
+```{r setup, include=FALSE}
+# 2020 3 DELAY 
+mlvar_SI_2020_3$model
+summary(mlvar_SI_2020_3$output$temporal$I_t)
+```
+
+# RANDOM AND FIXED 
+
+```{r setup, include=FALSE}
+# Extract random effects
+ranef_data <- ranef(mlvar_SI_2020_3$output$temporal$I_t)
+
+# Extract fixed effects
+fixef_data <- fixef(mlvar_SI_2020_3$output$temporal$I_t)
+```
+
+# HEATMPAP BETA MEAN
+
+```{r setup, include=FALSE}
+beta_mean <- mlvar_SI_2020_3[["results"]][["Beta"]][["mean"]]
+# Convert vectors to a data frame
+df <- data.frame(beta_mean)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta Mean 2020 - lags 3",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = "black")
+
+```
+
+# HEATMAP BETA P-VALUE
+
+```{r setup, include=FALSE}
+beta_p <- mlvar_SI_2020_3[["results"]][["Beta"]][["P"]]
+
+# Convert vectors to a data frame
+df <- data.frame(beta_p)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Custom function to set text color based on significance
+number_color_fun <- function(x) {
+  ifelse(x < 0.05, "red", "black")
+}
+
+# Apply custom function to the matrix
+number_colors <- matrix(number_color_fun(clean_matrix), nrow = nrow(clean_matrix), ncol = ncol(clean_matrix))
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta P-values 2020 - lags 3",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = number_colors)
+
+```
+
+# HEATMAP BETA SE
+
+```{r setup, include=FALSE}
+beta_se <- mlvar_SI_2020_3[["results"]][["Beta"]][["SE"]]
+
+df <- data.frame(beta_se)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta SE 2020 - lags 3",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = "black")
+
+```
+
+# 2021 
+# 2021 1 DELAY
+```{r setup, include=FALSE}
+# 2020 1 DELAY 
+mlvar_SI_2021_1$model
+summary(mlvar_SI_2021_1$output$temporal$I_t)
+```
+
+# RANDOM AND FIXED 
+
+```{r setup, include=FALSE}
+# Extract random effects
+ranef_data <- ranef(mlvar_SI_2021_1$output$temporal$I_t)
+
+# Extract fixed effects
+fixef_data <- fixef(mlvar_SI_2021_1$output$temporal$I_t)
+```
+
+# HEATMPAP BETA MEAN
+
+```{r setup, include=FALSE}
+beta_mean <- mlvar_SI_2021_1[["results"]][["Beta"]][["mean"]]
+# Convert vectors to a data frame
+df <- data.frame(beta_mean)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta Mean 2021 - lags 1",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = "black")
+
+```
+
+# HEATMAP BETA P-VALUE
+
+```{r setup, include=FALSE}
+beta_p <- mlvar_SI_2021_1[["results"]][["Beta"]][["P"]]
+
+# Convert vectors to a data frame
+df <- data.frame(beta_p)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Custom function to set text color based on significance
+number_color_fun <- function(x) {
+  ifelse(x < 0.05, "red", "black")
+}
+
+# Apply custom function to the matrix
+number_colors <- matrix(number_color_fun(clean_matrix), nrow = nrow(clean_matrix), ncol = ncol(clean_matrix))
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta P-values 2021 - lags 1",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = number_colors)
+
+```
+
+# HEATMAP BETA SE
+
+```{r setup, include=FALSE}
+beta_se <- mlvar_SI_2021_1[["results"]][["Beta"]][["SE"]]
+
+df <- data.frame(beta_se)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta SE 2021 - lags 1",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = "black")
+
+```
+
+
+# 2021 2 DELAY
+```{r setup, include=FALSE}
+# 2020 2 DELAY 
+mlvar_SI_2021_2$model
+summary(mlvar_SI_2021_2$output$temporal$I_t)
+```
+
+# RANDOM AND FIXED 
+
+```{r setup, include=FALSE}
+# Extract random effects
+ranef_data <- ranef(mlvar_SI_2021_2$output$temporal$I_t)
+
+# Extract fixed effects
+fixef_data <- fixef(mlvar_SI_2021_2$output$temporal$I_t)
+```
+
+# HEATMPAP BETA MEAN
+
+```{r setup, include=FALSE}
+beta_mean <- mlvar_SI_2021_2[["results"]][["Beta"]][["mean"]]
+# Convert vectors to a data frame
+df <- data.frame(beta_mean)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta Mean 2021 - lags 2",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = "black")
+
+```
+
+# HEATMAP BETA P-VALUE
+
+```{r setup, include=FALSE}
+beta_p <- mlvar_SI_2021_2[["results"]][["Beta"]][["P"]]
+
+# Convert vectors to a data frame
+df <- data.frame(beta_p)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Custom function to set text color based on significance
+number_color_fun <- function(x) {
+  ifelse(x < 0.05, "red", "black")
+}
+
+# Apply custom function to the matrix
+number_colors <- matrix(number_color_fun(clean_matrix), nrow = nrow(clean_matrix), ncol = ncol(clean_matrix))
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta P-values 2021 - lags 2",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = number_colors)
+
+```
+
+# HEATMAP BETA SE
+
+```{r setup, include=FALSE}
+beta_se <- mlvar_SI_2021_2[["results"]][["Beta"]][["SE"]]
+
+df <- data.frame(beta_se)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta SE 2021 - lags 2",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = "black")
+
+```
+
+# 2021 3 DELAY
+```{r setup, include=FALSE}
+# 2021 3 DELAY 
+mlvar_SI_2021_3$model
+summary(mlvar_SI_2021_3$output$temporal$I_t)
+```
+
+# RANDOM AND FIXED 
+
+```{r setup, include=FALSE}
+# Extract random effects
+ranef_data <- ranef(mlvar_SI_2021_3$output$temporal$I_t)
+
+# Extract fixed effects
+fixef_data <- fixef(mlvar_SI_2021_3$output$temporal$I_t)
+```
+
+# HEATMPAP BETA MEAN 
+
+```{r setup, include=FALSE}
+beta_mean <- mlvar_SI_2021_3[["results"]][["Beta"]][["mean"]]
+# Convert vectors to a data frame
+df <- data.frame(beta_mean)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta Mean 2021 - lags 3",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = "black")
+
+```
+
+# HEATMAP BETA P-VALUE
+
+```{r setup, include=FALSE}
+beta_p <- mlvar_SI_2021_3[["results"]][["Beta"]][["P"]]
+
+# Convert vectors to a data frame
+df <- data.frame(beta_p)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Custom function to set text color based on significance
+number_color_fun <- function(x) {
+  ifelse(x < 0.05, "red", "black")
+}
+
+# Apply custom function to the matrix
+number_colors <- matrix(number_color_fun(clean_matrix), nrow = nrow(clean_matrix), ncol = ncol(clean_matrix))
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta P-values 2021 - lags 3",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = number_colors)
+
+
+
+```
+
+# HEATMAP BETA SE
+
+```{r setup, include=FALSE}
+beta_se <- mlvar_SI_2021_3[["results"]][["Beta"]][["SE"]]
+
+df <- data.frame(beta_se)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta SE 2021 - lags 3",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = "black")
+
+```
+
+# 2022 
+# 2022 1 DELAY
+```{r setup, include=FALSE}
+# 2022 1 DELAY 
+mlvar_SI_2022_1$model
+summary(mlvar_SI_2022_1$output$temporal$I_t)
+```
+
+# RANDOM AND FIXED 
+
+```{r setup, include=FALSE}
+# Extract random effects
+ranef_data <- ranef(mlvar_SI_2022_1$output$temporal$I_t)
+
+# Extract fixed effects
+fixef_data <- fixef(mlvar_SI_2022_1$output$temporal$I_t)
+```
+
+# HEATMPAP BETA MEAN
+
+```{r setup, include=FALSE}
+beta_mean <- mlvar_SI_2022_1[["results"]][["Beta"]][["mean"]]
+# Convert vectors to a data frame
+df <- data.frame(beta_mean)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta Mean 2022 - lags 1",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = "black")
+
+```
+
+# HEATMAP BETA P-VALUE
+
+```{r setup, include=FALSE}
+beta_p <- mlvar_SI_2022_1[["results"]][["Beta"]][["P"]]
+
+# Convert vectors to a data frame
+df <- data.frame(beta_p)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Custom function to set text color based on significance
+number_color_fun <- function(x) {
+  ifelse(x < 0.05, "red", "black")
+}
+
+# Apply custom function to the matrix
+number_colors <- matrix(number_color_fun(clean_matrix), nrow = nrow(clean_matrix), ncol = ncol(clean_matrix))
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta P-values 2022 - lags 1",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = number_colors)
+
+```
+
+# HEATMAP BETA SE
+
+```{r setup, include=FALSE}
+beta_se <- mlvar_SI_2022_1[["results"]][["Beta"]][["SE"]]
+
+df <- data.frame(beta_se)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta SE 2022 - lags 1",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = "black")
+
+```
+
+
+# 2022 2 DELAY
+```{r setup, include=FALSE}
+# 2022 2 DELAY 
+mlvar_SI_2022_2$model
+summary(mlvar_SI_2022_2$output$temporal$I_t)
+```
+
+# RANDOM AND FIXED 
+
+```{r setup, include=FALSE}
+# Extract random effects
+ranef_data <- ranef(mlvar_SI_2022_2$output$temporal$I_t)
+
+# Extract fixed effects
+fixef_data <- fixef(mlvar_SI_2022_2$output$temporal$I_t)
+```
+
+# HEATMPAP BETA MEAN
+
+```{r setup, include=FALSE}
+beta_mean <- mlvar_SI_2022_2[["results"]][["Beta"]][["mean"]]
+# Convert vectors to a data frame
+df <- data.frame(beta_mean)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta Mean 2022 - lags 2",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = "black")
+
+```
+
+# HEATMAP BETA P-VALUE
+
+```{r setup, include=FALSE}
+beta_p <- mlvar_SI_2022_2[["results"]][["Beta"]][["P"]]
+
+# Convert vectors to a data frame
+df <- data.frame(beta_p)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Custom function to set text color based on significance
+number_color_fun <- function(x) {
+  ifelse(x < 0.05, "red", "black")
+}
+
+# Apply custom function to the matrix
+number_colors <- matrix(number_color_fun(clean_matrix), nrow = nrow(clean_matrix), ncol = ncol(clean_matrix))
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta P-values 2022 - lags 2",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = number_colors)
+
+```
+
+# HEATMAP BETA SE
+
+```{r setup, include=FALSE}
+beta_se <- mlvar_SI_2022_2[["results"]][["Beta"]][["SE"]]
+
+df <- data.frame(beta_se)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta SE 2022 - lags 2",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = "black")
+
+```
+
+# 2022 3 DELAY
+```{r setup, include=FALSE}
+# 2022 3 DELAY 
+mlvar_SI_2022_3$model
+summary(mlvar_SI_2022_3$output$temporaprintl$I_t)
+```
+
+# RANDOM AND FIXED 
+
+```{r setup, include=FALSE}
+# Extract random effects
+ranef_data <- ranef(mlvar_SI_2022_3$output$temporal$I_t)
+
+# Extract fixed effects
+fixef_data <- fixef(mlvar_SI_2022_3$output$temporal$I_t)
+```
+
+# HEATMPAP BETA MEAN 
+
+```{r setup, include=FALSE}
+beta_mean <- mlvar_SI_2022_3[["results"]][["Beta"]][["mean"]]
+# Convert vectors to a data frame
+df <- data.frame(beta_mean)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta Mean 2022 - lags 3",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = "black")
+
+```
+
+# HEATMAP BETA P-VALUE
+
+```{r setup, include=FALSE}
+beta_p <- mlvar_SI_2022_3[["results"]][["Beta"]][["P"]]
+
+# Convert vectors to a data frame
+df <- data.frame(beta_p)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Custom function to set text color based on significance
+number_color_fun <- function(x) {
+  ifelse(x < 0.05, "red", "black")
+}
+
+# Apply custom function to the matrix
+number_colors <- matrix(number_color_fun(clean_matrix), nrow = nrow(clean_matrix), ncol = ncol(clean_matrix))
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta P-values 2022 - lags 3",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = number_colors)
+
+```
+
+# HEATMAP BETA SE
+
+```{r setup, include=FALSE}
+beta_se <- mlvar_SI_2022_3[["results"]][["Beta"]][["SE"]]
+
+df <- data.frame(beta_se)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta SE 2022 - lags 3",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = "black")
+
+```
+
+# CONTAINEMENT HEALTH INDEX
+```{r setup, include=FALSE}
+# Containment Health Index 2020
+countryDataCH_2020 <- data.frame()
+countryDataCH_2020 <- buildCountryData3_2020(merged_Spain_2020, Containement_health_index_oxford_spain_2020, countryDataCH_2020, 1)
+countryDataCH_2020 <- buildCountryData3_2020(merged_France_2020, Containement_health_index_oxford_france_2020, countryDataCH_2020, 2)
+countryDataCH_2020 <- buildCountryData3_2020(merged_Netherlands_2020, Containement_health_index_oxford_netherlands_2020, countryDataCH_2020, 3)
+countryDataCH_2020 <- buildCountryData3_2020(merged_Latvia_2020, Containement_health_index_oxford_latvia_2020, countryDataCH_2020, 4)
+countryDataCH_2020 <- buildCountryData3_2020(merged_Slovenia_2020, Containement_health_index_oxford_slovenia_2020, countryDataCH_2020, 5)
+countryDataCH_2020 <- buildCountryData3_2020(merged_Greece_2020, Containement_health_index_oxford_greece_2020, countryDataCH_2020, 6)
+countryDataCH_2020 <- buildCountryData3_2020(merged_Ireland_2020, Containement_health_index_oxford_ireland_2020, countryDataCH_2020, 7)
+countryDataCH_2020 <- buildCountryData3_2020(merged_Cyprus_2020, Containement_health_index_oxford_cyprus_2020, countryDataCH_2020, 8)
+countryDataCH_2020 <- buildCountryData3_2020(merged_Estonia_2020, Containement_health_index_oxford_estonia_2020, countryDataCH_2020, 9)
+
+# Calculate missing data percentage for each column in 2020 dataset
+missing_data_percentage_2020 <- colMeans(is.na(countryDataCH_2020)) * 100
+print(missing_data_percentage_2020)
+
+# Containment Health Index 2021
+countryDataCH_2021 <- data.frame()
+countryDataCH_2021 <- buildCountryData3_2021(merged_Spain_2021, Containement_health_index_oxford_spain_2021, countryDataCH_2021, 1)
+countryDataCH_2021 <- buildCountryData3_2021(merged_France_2021, Containement_health_index_oxford_france_2021, countryDataCH_2021, 2)
+countryDataCH_2021 <- buildCountryData3_2021(merged_Netherlands_2021, Containement_health_index_oxford_netherlands_2021, countryDataCH_2021, 3)
+countryDataCH_2021 <- buildCountryData3_2021(merged_Latvia_2021, Containement_health_index_oxford_latvia_2021, countryDataCH_2021, 4)
+countryDataCH_2021 <- buildCountryData3_2021(merged_Slovenia_2021, Containement_health_index_oxford_slovenia_2021, countryDataCH_2021, 5)
+countryDataCH_2021 <- buildCountryData3_2021(merged_Greece_2021, Containement_health_index_oxford_greece_2021, countryDataCH_2021, 6)
+countryDataCH_2021 <- buildCountryData3_2021(merged_Ireland_2021, Containement_health_index_oxford_ireland_2021, countryDataCH_2021, 7)
+countryDataCH_2021 <- buildCountryData3_2021(merged_Cyprus_2021, Containement_health_index_oxford_cyprus_2021, countryDataCH_2021, 8)
+countryDataCH_2021 <- buildCountryData3_2021(merged_Estonia_2021, Containement_health_index_oxford_estonia_2021, countryDataCH_2021, 9)
+
+# Calculate missing data percentage for each column in 2021 dataset
+missing_data_percentage_2021 <- colMeans(is.na(countryDataCH_2021)) * 100
+print(missing_data_percentage_2021)
+
+# Containment Health Index 2022
+countryDataCH_2022 <- data.frame()
+countryDataCH_2022 <- buildCountryData3_2022(merged_Spain_2022, Containement_health_index_oxford_spain_2022, countryDataCH_2022, 1)
+countryDataCH_2022 <- buildCountryData3_2022(merged_France_2022, Containement_health_index_oxford_france_2022, countryDataCH_2022, 2)
+countryDataCH_2022 <- buildCountryData3_2022(merged_Netherlands_2022, Containement_health_index_oxford_Netherlands_2022, countryDataCH_2022, 3)
+countryDataCH_2022 <- buildCountryData3_2022(merged_Latvia_2022, Containement_health_index_oxford_latvia_2022, countryDataCH_2022, 4)
+countryDataCH_2022 <- buildCountryData3_2022(merged_Slovenia_2022, Containement_health_index_oxford_slovenia_2022, countryDataCH_2022, 5)
+countryDataCH_2022 <- buildCountryData3_2022(merged_Greece_2022, Containement_health_index_oxford_greece_2022, countryDataCH_2022, 6)
+countryDataCH_2022 <- buildCountryData3_2022(merged_Ireland_2022, Containement_health_index_oxford_ireland_2022, countryDataCH_2022, 7)
+countryDataCH_2022 <- buildCountryData3_2022(merged_Cyprus_2022, Containement_health_index_oxford_cyprus_2022, countryDataCH_2022, 8)
+countryDataCH_2022 <- buildCountryData3_2022(merged_Estonia_2022, Containement_health_index_oxford_estonia_2022, countryDataCH_2022, 9)
+
+# Calculate missing data percentage for each column in 2022 dataset
+missing_data_percentage_2022 <- colMeans(is.na(countryDataCH_2022)) * 100
+print(missing_data_percentage_2022)
+```
+
+# MODEL CONTANEMENT INDEX 2020
+```{r setup, include=FALSE}
+mlvar_CH_2020_1 <- mlVAR(data = countryDataCH_2020, 
+                   vars = c("I_t", "nuoviCasi_t", "admHosp_t", "admICU_t", "morti_t","Fdose", "Sdose", "Bdose", "Alpha", "Beta", "Delta", "Zeta"),
+                   idvar = "ID",
+                   lags = 1,
+                   temporal = "orthogonal" )
+
+mlvar_CH_2020_2 <- mlVAR(data = countryDataCH_2020, 
+                   vars = c("I_t", "nuoviCasi_t", "admHosp_t", "admICU_t", "morti_t","Fdose", "Sdose", "Bdose", "Alpha", "Beta", "Delta", "Zeta"),
+                   idvar = "ID",
+                   lags = 2,
+                   temporal = "orthogonal" )
+
+mlvar_CH_2020_3 <- mlVAR(data = countryDataCH_2020, 
+                   vars = c("I_t", "nuoviCasi_t", "admHosp_t", "admICU_t", "morti_t","Fdose", "Sdose", "Bdose", "Alpha", "Beta", "Delta", "Zeta"),
+                   idvar = "ID",
+                   lags = 3,
+                   temporal = "orthogonal" )
+
+
+```
+
+# MODEL CONTAINEMENT INDEX 2021
+```{r setup, include=FALSE}
+mlvar_CH_2021_1 <- mlVAR(data = countryDataCH_2021, 
+                   vars = c("I_t", "nuoviCasi_t", "admHosp_t", "admICU_t", "morti_t","Fdose", "Sdose", "Bdose", "Alpha", "Beta", "Delta", "Zeta", "Theta", "Gamma", "Epsilon", "Eta", "Kappa", "Iota", "Mu", "Lambda", "GH490R", "Omicron"),
+                   idvar = "ID",
+                   lags = 1,
+                   temporal = "orthogonal" )
+
+mlvar_CH_2021_2 <- mlVAR(data = countryDataCH_2021, 
+                   vars = c("I_t", "nuoviCasi_t", "admHosp_t", "admICU_t", "morti_t","Fdose", "Sdose", "Bdose", "Alpha", "Beta", "Delta", "Zeta", "Theta", "Gamma", "Epsilon", "Eta", "Kappa", "Iota", "Mu", "Lambda", "GH490R", "Omicron"),
+                   idvar = "ID",
+                   lags = 2,
+                   temporal = "orthogonal" )
+
+mlvar_CH_2021_3 <- mlVAR(data = countryDataCH_2021, 
+                   vars = c("I_t", "nuoviCasi_t", "admHosp_t", "admICU_t", "morti_t","Fdose", "Sdose", "Bdose", "Alpha", "Beta", "Delta", "Zeta", "Theta", "Gamma", "Epsilon", "Eta", "Kappa", "Iota", "Mu", "Lambda", "GH490R", "Omicron"),
+                   idvar = "ID",
+                   lags = 3,
+                   temporal = "orthogonal" )
+```
+
+# MODEL CONTAINEMENT INDEX 2022
+```{r setup, include=FALSE}
+mlvar_CH_2022_1 <- mlVAR(data = countryDataCH_2022, 
+                   vars = c("I_t", "nuoviCasi_t", "admHosp_t", "admICU_t", "morti_t","Fdose", "Sdose", "Bdose", "Delta","GH490R", "Omicron", "Alpha", "BA.2.75", "CH.1.1", "XBB", "XBB.1.5"),
+                   idvar = "ID",
+                   lags = 1,
+                   temporal = "orthogonal" )
+
+mlvar_CH_2022_2 <- mlVAR(data = countryDataCH_2022, 
+                   vars = c("I_t", "nuoviCasi_t", "admHosp_t", "admICU_t", "morti_t","Fdose", "Sdose", "Bdose", "Delta","GH490R", "Omicron", "Alpha", "BA.2.75", "CH.1.1", "XBB", "XBB.1.5"),
+                   idvar = "ID",
+                   lags = 2,
+                   temporal = "orthogonal" )
+
+mlvar_CH_2022_3 <- mlVAR(data = countryDataCH_2022, 
+                   vars = c("I_t", "nuoviCasi_t", "admHosp_t", "admICU_t", "morti_t","Fdose", "Sdose", "Bdose", "Delta","GH490R", "Omicron", "Alpha", "BA.2.75", "CH.1.1", "XBB", "XBB.1.5"),
+                   idvar = "ID",
+                   lags = 3,
+                   temporal = "orthogonal" )
+```
+
+# COMPARISON 
+```{r setup, include=FALSE}
+mlVARcompare(mlvar_CH_2020_1,mlvar_CH_2020_2,mlvar_CH_2020_3)
+
+mlVARcompare(mlvar_CH_2021_1,mlvar_CH_2021_2,mlvar_CH_2021_3)
+
+mlVARcompare(mlvar_CH_2022_1,mlvar_CH_2022_2,mlvar_CH_2022_3)
+
+```
+
+# RESULTS GRAPHICS LAGS 
+```{r setup, include=FALSE}
+# Use str() to understand the structure of the results
+str(mlVARcompare(mlvar_CH_2020_1, mlvar_CH_2020_2, mlvar_CH_2020_3))
+
+# Example to extract AIC and BIC for a specific variable name, adjust as needed
+results_2020 <- mlVARcompare(mlvar_CH_2020_1, mlvar_CH_2020_2, mlvar_CH_2020_3)
+aic_2020 <- sapply(results_2020, function(x) x$aic)  # Assuming 'aic' is accessible directly
+bic_2020 <- sapply(results_2020, function(x) x$bic)
+
+results_2021 <- mlVARcompare(mlvar_CH_2021_1, mlvar_CH_2021_2, mlvar_CH_2021_3)
+aic_2021 <- sapply(results_2021, function(x) x$aic)
+bic_2021 <- sapply(results_2021, function(x) x$bic)
+
+results_2022 <- mlVARcompare(mlvar_CH_2022_1, mlvar_CH_2022_2, mlvar_CH_2022_3)
+aic_2022 <- sapply(results_2022, function(x) x$aic)
+bic_2022 <- sapply(results_2022, function(x) x$bic)
+```
+
+# 2020
+```{r setup, include=FALSE}
+str(aic_2020)
+# Converting matrix to data frame for plotting, if necessary
+df <- as.data.frame(aic_2020)
+
+# Adding row and column names if not already present
+names(df) <- c("I_t", "nuoviCasi_t", "admHosp_t", "admICU_t", "morti_t",
+               "Fdose", "Sdose", "Bdose", "Alpha", "Beta", "Delta", "Zeta")
+df$Model <- factor(1:nrow(df))
+
+# Melting the data frame for ggplot2 if it's in wide format
+df_melted <- melt(df, id.vars = "Model")
+
+# Create a plot
+ggplot(df_melted, aes(x = variable, y = value, fill = Model)) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  theme_minimal() +
+  labs(title = "Comparison of Model lags AIC 2020",
+       x = "Variable",
+       y = "Coefficient",
+       fill = "Model") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for readability
+```
+
+# 2021
+```{r setup, include=FALSE}
+str(aic_2021)
+# Converting matrix to data frame for plotting, if necessary
+df <- as.data.frame(aic_2021)
+
+# Adding row and column names if not already present
+names(df) <- c("I_t", "nuoviCasi_t", "admHosp_t", "admICU_t", "morti_t","Fdose", "Sdose", "Bdose", "Alpha", "Beta", "Delta", "Zeta", "Theta", "Gamma", "Epsilon", "Eta", "Kappa", "Iota", "Mu", "Lambda", "GH490R", "Omicron")
+df$Model <- factor(1:nrow(df))
+
+# Load required packages
+library(ggplot2)
+library(reshape2)  # If needed for melting the data frame
+
+# Melting the data frame for ggplot2 if it's in wide format
+df_melted <- melt(df, id.vars = "Model")
+
+# Create a plot
+ggplot(df_melted, aes(x = variable, y = value, fill = Model)) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  theme_minimal() +
+  labs(title = "Comparison of Model lags AIC 2021",
+       x = "Variable",
+       y = "Coefficient",
+       fill = "Model") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for readability
+```
+
+# 2022
+```{r setup, include=FALSE}
+str(aic_2022)
+# Converting matrix to data frame for plotting, if necessary
+df <- as.data.frame(aic_2022)
+
+# Adding row and column names if not already present
+names(df) <- c("I_t", "nuoviCasi_t", "admHosp_t", "admICU_t", "morti_t","Fdose", "Sdose", "Bdose", "Delta","GH490R", "Omicron", "Alpha", "BA.2.75", "CH.1.1", "XBB", "XBB.1.5")
+df$Model <- factor(1:nrow(df))
+
+# Load required packages
+library(ggplot2)
+library(reshape2)  # If needed for melting the data frame
+
+# Melting the data frame for ggplot2 if it's in wide format
+df_melted <- melt(df, id.vars = "Model")
+
+# Create a plot
+ggplot(df_melted, aes(x = variable, y = value, fill = Model)) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  theme_minimal() +
+  labs(title = "Comparison of Model lags AIC 2022",
+       x = "Variable",
+       y = "Coefficient",
+       fill = "Model") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for readability
+```
+
+# GRAPHICS LAGS 
+```{r setup, include=FALSE}
+# Use str() to understand the structure of the results
+str(mlVARcompare(mlvar_CH_2020_1, mlvar_CH_2020_2, mlvar_CH_2020_3))
+
+# Example to extract AIC and BIC for a specific variable name, adjust as needed
+results_2020 <- mlVARcompare(mlvar_CH_2020_1, mlvar_CH_2020_2, mlvar_CH_2020_3)
+aic_2020 <- sapply(results_2020, function(x) x$aic)  # Assuming 'aic' is accessible directly
+bic_2020 <- sapply(results_2020, function(x) x$bic)
+
+results_2021 <- mlVARcompare(mlvar_CH_2021_1, mlvar_CH_2021_2, mlvar_CH_2021_3)
+aic_2021 <- sapply(results_2021, function(x) x$aic)
+bic_2021 <- sapply(results_2021, function(x) x$bic)
+
+results_2022 <- mlVARcompare(mlvar_CH_2022_1, mlvar_CH_2022_2, mlvar_CH_2022_3)
+aic_2022 <- sapply(results_2022, function(x) x$aic)
+bic_2022 <- sapply(results_2022, function(x) x$bic)
+```
+
+# 2020
+```{r setup, include=FALSE}
+str(aic_2020)
+# Converting matrix to data frame for plotting, if necessary
+df <- as.data.frame(aic_2020)
+
+# Adding row and column names if not already present
+names(df) <- c("I_t", "nuoviCasi_t", "admHosp_t", "admICU_t", "morti_t",
+               "Fdose", "Sdose", "Bdose", "Alpha", "Beta", "Delta", "Zeta")
+df$Model <- factor(1:nrow(df))
+
+# Load required packages
+library(ggplot2)
+library(reshape2)  # If needed for melting the data frame
+
+# Melting the data frame for ggplot2 if it's in wide format
+df_melted <- melt(df, id.vars = "Model")
+
+# Create a plot
+ggplot(df_melted, aes(x = variable, y = value, fill = Model)) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  theme_minimal() +
+  labs(title = "Comparison of Model lags AIC 2020",
+       x = "Variable",
+       y = "Coefficient",
+       fill = "Model") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for readability
+```
+
+# 2021
+```{r setup, include=FALSE}
+str(aic_2021)
+# Converting matrix to data frame for plotting, if necessary
+df <- as.data.frame(aic_2021)
+
+# Adding row and column names if not already present
+names(df) <- c("I_t", "nuoviCasi_t", "admHosp_t", "admICU_t", "morti_t","Fdose", "Sdose", "Bdose", "Alpha", "Beta", "Delta", "Zeta", "Theta", "Gamma", "Epsilon", "Eta", "Kappa", "Iota", "Mu", "Lambda", "GH490R", "Omicron")
+df$Model <- factor(1:nrow(df))
+
+# Melting the data frame for ggplot2 if it's in wide format
+df_melted <- melt(df, id.vars = "Model")
+
+# Create a plot
+ggplot(df_melted, aes(x = variable, y = value, fill = Model)) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  theme_minimal() +
+  labs(title = "Comparison of Model lags AIC 2021",
+       x = "Variable",
+       y = "Coefficient",
+       fill = "Model") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for readability
+```
+
+# 2022
+```{r setup, include=FALSE}
+str(aic_2022)
+# Converting matrix to data frame for plotting, if necessary
+df <- as.data.frame(aic_2022)
+
+# Adding row and column names if not already present
+names(df) <- c("I_t", "nuoviCasi_t", "admHosp_t", "admICU_t", "morti_t","Fdose", "Sdose", "Bdose", "Delta","GH490R", "Omicron", "Alpha", "BA.2.75", "CH.1.1", "XBB", "XBB.1.5")
+df$Model <- factor(1:nrow(df))
+
+# Melting the data frame for ggplot2 if it's in wide format
+df_melted <- melt(df, id.vars = "Model")
+
+# Create a plot
+ggplot(df_melted, aes(x = variable, y = value, fill = Model)) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  theme_minimal() +
+  labs(title = "Comparison of Model lags AIC 2022",
+       x = "Variable",
+       y = "Coefficient",
+       fill = "Model") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for readability
+```
+# RESULTS 
+
+# 2020
+# 2020 1 DELAY
+```{r setup, include=FALSE}
+# 2020 1 DELAY 
+mlvar_CH_2020_1$model
+summary(mlvar_CH_2020_1$output$temporal$I_t)
+```
+
+# RANDOM AND FIXED 
+
+```{r setup, include=FALSE}
+# Extract random effects
+ranef_data <- ranef(mlvar_CH_2020_1$output$temporal$I_t)
+
+# Extract fixed effects
+fixef_data <- fixef(mlvar_CH_2020_1$output$temporal$I_t)
+```
+
+# HEATMPAP BETA MEAN 
+
+```{r setup, include=FALSE}
+beta_mean <- mlvar_CH_2020_1[["results"]][["Beta"]][["mean"]]
+# Convert vectors to a data frame
+df <- data.frame(beta_mean)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta Mean 2020 - lags 1",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = "black")
+
+```
+
+# HEATMAP BETA P-VALUE
+
+```{r setup, include=FALSE}
+beta_p <- mlvar_CH_2020_1[["results"]][["Beta"]][["P"]]
+
+# Convert vectors to a data frame
+df <- data.frame(beta_p)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Custom function to set text color based on significance
+number_color_fun <- function(x) {
+  ifelse(x < 0.05, "red", "black")
+}
+
+# Apply custom function to the matrix
+number_colors <- matrix(number_color_fun(clean_matrix), nrow = nrow(clean_matrix), ncol = ncol(clean_matrix))
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta P-values 2020 - lags 1",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = number_colors)
+
+```
+
+# HEATMAP BETA SE
+
+```{r setup, include=FALSE}
+beta_se <- mlvar_CH_2020_1[["results"]][["Beta"]][["SE"]]
+
+df <- data.frame(beta_se)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta SE 2020 - lags 1",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = "black")
+
+```
+
+
+# 2020 2 DELAY
+```{r setup, include=FALSE}
+# 2020 2 DELAY 
+mlvar_CH_2020_2$model
+summary(mlvar_CH_2020_2$output$temporal$I_t)
+```
+
+# RANDOM AND FIXED 
+
+```{r setup, include=FALSE}
+# Extract random effects
+ranef_data <- ranef(mlvar_CH_2020_2$output$temporal$I_t)
+
+# Extract fixed effects
+fixef_data <- fixef(mlvar_CH_2020_2$output$temporal$I_t)
+```
+
+# HEATMPAP BETA MEAN
+
+```{r setup, include=FALSE}
+beta_mean <- mlvar_CH_2020_2[["results"]][["Beta"]][["mean"]]
+# Convert vectors to a data frame
+df <- data.frame(beta_mean)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta Mean 2020 - lags 2",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = "black")
+
+```
+
+# HEATMAP BETA P-VALUE
+
+```{r setup, include=FALSE}
+beta_p <- mlvar_CH_2020_2[["results"]][["Beta"]][["P"]]
+
+# Convert vectors to a data frame
+df <- data.frame(beta_p)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Custom function to set text color based on significance
+number_color_fun <- function(x) {
+  ifelse(x < 0.05, "red", "black")
+}
+
+# Apply custom function to the matrix
+number_colors <- matrix(number_color_fun(clean_matrix), nrow = nrow(clean_matrix), ncol = ncol(clean_matrix))
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta P-values 2020 - lags 2",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = number_colors)
+
+```
+
+# HEATMAP BETA SE
+
+```{r setup, include=FALSE}
+beta_se <- mlvar_CH_2020_2[["results"]][["Beta"]][["SE"]]
+
+df <- data.frame(beta_se)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta SE 2020 - lags 2",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = "black")
+
+```
+
+# 2020 3 DELAY
+```{r setup, include=FALSE}
+# 2020 3 DELAY 
+mlvar_CH_2020_3$model
+summary(mlvar_CH_2020_3$output$temporal$I_t)
+```
+
+# RANDOM AND FIXED 
+
+```{r setup, include=FALSE}
+# Extract random effects
+ranef_data <- ranef(mlvar_CH_2020_3$output$temporal$I_t)
+
+# Extract fixed effects
+fixef_data <- fixef(mlvar_CH_2020_3$output$temporal$I_t)
+```
+
+# HEATMPAP BETA MEAN
+
+```{r setup, include=FALSE}
+beta_mean <- mlvar_CH_2020_3[["results"]][["Beta"]][["mean"]]
+# Convert vectors to a data frame
+df <- data.frame(beta_mean)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta Mean 2020 - lags 3",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = "black")
+
+```
+
+# HEATMAP BETA P-VALUE
+
+```{r setup, include=FALSE}
+beta_p <- mlvar_CH_2020_3[["results"]][["Beta"]][["P"]]
+
+# Convert vectors to a data frame
+df <- data.frame(beta_p)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Custom function to set text color based on significance
+number_color_fun <- function(x) {
+  ifelse(x < 0.05, "red", "black")
+}
+
+# Apply custom function to the matrix
+number_colors <- matrix(number_color_fun(clean_matrix), nrow = nrow(clean_matrix), ncol = ncol(clean_matrix))
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta P-values 2020 - lags 3",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = number_colors)
+
+```
+
+# HEATMAP BETA SE
+
+```{r setup, include=FALSE}
+beta_se <- mlvar_CH_2020_3[["results"]][["Beta"]][["SE"]]
+
+df <- data.frame(beta_se)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta SE 2020 - lags 3",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = "black")
+
+```
+
+# 2021 
+# 2021 1 DELAY
+```{r setup, include=FALSE}
+# 2020 1 DELAY 
+mlvar_CH_2021_1$model
+summary(mlvar_CH_2021_1$output$temporal$I_t)
+```
+
+# RANDOM AND FIXED 
+
+```{r setup, include=FALSE}
+# Extract random effects
+ranef_data <- ranef(mlvar_CH_2021_1$output$temporal$I_t)
+
+# Extract fixed effects
+fixef_data <- fixef(mlvar_CH_2021_1$output$temporal$I_t)
+```
+
+# HEATMPAP BETA MEAN
+
+```{r setup, include=FALSE}
+beta_mean <- mlvar_CH_2021_1[["results"]][["Beta"]][["mean"]]
+# Convert vectors to a data frame
+df <- data.frame(beta_mean)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta Mean 2021 - lags 1",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = "black")
+
+```
+
+# HEATMAP BETA P-VALUE
+
+```{r setup, include=FALSE}
+beta_p <- mlvar_CH_2021_1[["results"]][["Beta"]][["P"]]
+
+# Convert vectors to a data frame
+df <- data.frame(beta_p)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Custom function to set text color based on significance
+number_color_fun <- function(x) {
+  ifelse(x < 0.05, "red", "black")
+}
+
+# Apply custom function to the matrix
+number_colors <- matrix(number_color_fun(clean_matrix), nrow = nrow(clean_matrix), ncol = ncol(clean_matrix))
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta P-values 2021 - lags 1",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = number_colors)
+
+```
+
+# HEATMAP BETA SE
+
+```{r setup, include=FALSE}
+beta_se <- mlvar_CH_2021_1[["results"]][["Beta"]][["SE"]]
+
+df <- data.frame(beta_se)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta SE 2021 - lags 1",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = "black")
+
+```
+
+
+# 2021 2 DELAY
+```{r setup, include=FALSE}
+# 2020 2 DELAY 
+mlvar_CH_2021_2$model
+summary(mlvar_CH_2021_2$output$temporal$I_t)
+```
+
+# RANDOM AND FIXED 
+
+```{r setup, include=FALSE}
+# Extract random effects
+ranef_data <- ranef(mlvar_CH_2021_2$output$temporal$I_t)
+
+# Extract fixed effects
+fixef_data <- fixef(mlvar_CH_2021_2$output$temporal$I_t)
+```
+
+# HEATMPAP BETA MEAN
+
+```{r setup, include=FALSE}
+beta_mean <- mlvar_CH_2021_2[["results"]][["Beta"]][["mean"]]
+# Convert vectors to a data frame
+df <- data.frame(beta_mean)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta Mean 2021 - lags 2",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = "black")
+
+```
+
+# HEATMAP BETA P-VALUE
+
+```{r setup, include=FALSE}
+beta_p <- mlvar_CH_2021_2[["results"]][["Beta"]][["P"]]
+
+# Convert vectors to a data frame
+df <- data.frame(beta_p)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Custom function to set text color based on significance
+number_color_fun <- function(x) {
+  ifelse(x < 0.05, "red", "black")
+}
+
+# Apply custom function to the matrix
+number_colors <- matrix(number_color_fun(clean_matrix), nrow = nrow(clean_matrix), ncol = ncol(clean_matrix))
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta P-values 2021 - lags 2",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = number_colors)
+
+```
+
+# HEATMAP BETA SE
+
+```{r setup, include=FALSE}
+beta_se <- mlvar_CH_2021_2[["results"]][["Beta"]][["SE"]]
+
+df <- data.frame(beta_se)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta SE 2021 - lags 2",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = "black")
+
+```
+
+# 2021 3 DELAY
+```{r setup, include=FALSE}
+# 2021 3 DELAY 
+mlvar_CH_2021_3$model
+summary(mlvar_CH_2021_3$output$temporal$I_t)
+```
+
+# RANDOM AND FIXED 
+
+```{r setup, include=FALSE}
+# Extract random effects
+ranef_data <- ranef(mlvar_CH_2021_3$output$temporal$I_t)
+
+# Extract fixed effects
+fixef_data <- fixef(mlvar_CH_2021_3$output$temporal$I_t)
+```
+
+# HEATMPAP BETA MEAN 
+
+```{r setup, include=FALSE}
+beta_mean <- mlvar_CH_2021_3[["results"]][["Beta"]][["mean"]]
+# Convert vectors to a data frame
+df <- data.frame(beta_mean)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta Mean 2021 - lags 3",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = "black")
+
+```
+
+# HEATMAP BETA P-VALUE
+
+```{r setup, include=FALSE}
+beta_p <- mlvar_CH_2021_3[["results"]][["Beta"]][["P"]]
+
+# Convert vectors to a data frame
+df <- data.frame(beta_p)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Custom function to set text color based on significance
+number_color_fun <- function(x) {
+  ifelse(x < 0.05, "red", "black")
+}
+
+# Apply custom function to the matrix
+number_colors <- matrix(number_color_fun(clean_matrix), nrow = nrow(clean_matrix), ncol = ncol(clean_matrix))
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta P-values 2021 - lags 3",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = number_colors)
+
+```
+
+# HEATMAP BETA SE
+
+```{r setup, include=FALSE}
+beta_se <- mlvar_CH_2021_3[["results"]][["Beta"]][["SE"]]
+
+df <- data.frame(beta_se)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta SE 2021 - lags 3",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = "black")
+
+```
+
+# 2022 
+# 2022 1 DELAY
+```{r setup, include=FALSE}
+# 2022 1 DELAY 
+mlvar_CH_2022_1$model
+summary(mlvar_CH_2022_1$output$temporal$I_t)
+```
+
+# RANDOM AND FIXED 
+
+```{r setup, include=FALSE}
+# Extract random effects
+ranef_data <- ranef(mlvar_CH_2022_1$output$temporal$I_t)
+
+# Extract fixed effects
+fixef_data <- fixef(mlvar_CH_2022_1$output$temporal$I_t)
+```
+
+# HEATMPAP BETA MEAN
+
+```{r setup, include=FALSE}
+beta_mean <- mlvar_CH_2022_1[["results"]][["Beta"]][["mean"]]
+# Convert vectors to a data frame
+df <- data.frame(beta_mean)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta Mean 2022 - lags 1",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = "black")
+
+```
+
+# HEATMAP BETA P-VALUE
+
+```{r setup, include=FALSE}
+beta_p <- mlvar_CH_2022_1[["results"]][["Beta"]][["P"]]
+
+# Convert vectors to a data frame
+df <- data.frame(beta_p)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Custom function to set text color based on significance
+number_color_fun <- function(x) {
+  ifelse(x < 0.05, "red", "black")
+}
+
+# Apply custom function to the matrix
+number_colors <- matrix(number_color_fun(clean_matrix), nrow = nrow(clean_matrix), ncol = ncol(clean_matrix))
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta P-values 2022 - lags 1",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = number_colors)
+
+```
+
+# HEATMAP BETA SE
+
+```{r setup, include=FALSE}
+beta_se <- mlvar_CH_2022_1[["results"]][["Beta"]][["SE"]]
+
+df <- data.frame(beta_se)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta SE 2022 - lags 1",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = "black")
+
+```
+
+
+# 2022 2 DELAY
+```{r setup, include=FALSE}
+# 2022 2 DELAY 
+mlvar_CH_2022_2$model
+summary(mlvar_CH_2022_2$output$temporal$I_t)
+```
+
+# RANDOM AND FIXED 
+
+```{r setup, include=FALSE}
+# Extract random effects
+ranef_data <- ranef(mlvar_CH_2022_2$output$temporal$I_t)
+
+# Extract fixed effects
+fixef_data <- fixef(mlvar_CH_2022_2$output$temporal$I_t)
+```
+
+# HEATMPAP BETA MEAN
+
+```{r setup, include=FALSE}
+beta_mean <- mlvar_CH_2022_2[["results"]][["Beta"]][["mean"]]
+# Convert vectors to a data frame
+df <- data.frame(beta_mean)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta Mean 2022 - lags 2",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = "black")
+
+```
+
+# HEATMAP BETA P-VALUE
+
+```{r setup, include=FALSE}
+beta_p <- mlvar_CH_2022_2[["results"]][["Beta"]][["P"]]
+
+# Convert vectors to a data frame
+df <- data.frame(beta_p)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Custom function to set text color based on significance
+number_color_fun <- function(x) {
+  ifelse(x < 0.05, "red", "black")
+}
+
+# Apply custom function to the matrix
+number_colors <- matrix(number_color_fun(clean_matrix), nrow = nrow(clean_matrix), ncol = ncol(clean_matrix))
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta P-values 2022 - lags 2",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = number_colors)
+
+```
+
+# HEATMAP BETA SE
+
+```{r setup, include=FALSE}
+beta_se <- mlvar_CH_2022_2[["results"]][["Beta"]][["SE"]]
+
+df <- data.frame(beta_se)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta SE 2022 - lags 2",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = "black")
+
+```
+
+# 2022 3 DELAY
+```{r setup, include=FALSE}
+# 2022 3 DELAY 
+mlvar_CH_2022_3$model
+summary(mlvar_CH_2022_3$output$temporaprintl$I_t)
+```
+
+# RANDOM AND FIXED 
+
+```{r setup, include=FALSE}
+# Extract random effects
+ranef_data <- ranef(mlvar_CH_2022_3$output$temporal$I_t)
+
+# Extract fixed effects
+fixef_data <- fixef(mlvar_CH_2022_3$output$temporal$I_t)
+```
+
+# HEATMPAP BETA MEAN 
+
+```{r setup, include=FALSE}
+beta_mean <- mlvar_CH_2022_3[["results"]][["Beta"]][["mean"]]
+# Convert vectors to a data frame
+df <- data.frame(beta_mean)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta Mean 2022 - lags 3",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = "black")
+
+```
+
+# HEATMAP BETA P-VALUE
+
+```{r setup, include=FALSE}
+beta_p <- mlvar_CH_2022_3[["results"]][["Beta"]][["P"]]
+
+# Convert vectors to a data frame
+df <- data.frame(beta_p)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Custom function to set text color based on significance
+number_color_fun <- function(x) {
+  ifelse(x < 0.05, "red", "black")
+}
+
+# Apply custom function to the matrix
+number_colors <- matrix(number_color_fun(clean_matrix), nrow = nrow(clean_matrix), ncol = ncol(clean_matrix))
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta P-values 2022 - lags 3",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = number_colors)
+
+```
+
+# HEATMAP BETA SE
+
+```{r setup, include=FALSE}
+beta_se <- mlvar_CH_2022_3[["results"]][["Beta"]][["SE"]]
+
+df <- data.frame(beta_se)
+
+# Remove columns with NA values
+df_clean <- df[, colSums(is.na(df)) == 0]
+
+# Reshape data for pheatmap
+df_melt <- melt(df_clean, variable.name = "Metric")
+
+# Convert df_clean to a matrix
+clean_matrix <- as.matrix(df_clean)
+
+# Generate the heatmap
+pheatmap(clean_matrix, 
+         main = "Heatmap of Beta SE 2022 - lags 3",
+         color = colorRampPalette(c("blue", "white", "red"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = TRUE,
+         number_color = "black")
+
+```
+
+# BETA IN TIME 
+
+```{r setup, include=FALSE}
+summary_2020 <- summary(mlvar_SI_2020_1$output$temporal$I_t)
+summary_2021 <- summary(mlvar_SI_2021_1$output$temporal$I_t)
+summary_2022 <- summary(mlvar_SI_2022_1$output$temporal$I_t)
+# Estrazione dei dati dai summary
+betas_2020 <- summary_2020$coefficients[1:7, "Estimate"]
+betas_2021 <- summary_2021$coefficients[1:7, "Estimate"]
+betas_2022 <- summary_2022$coefficients[1:7, "Estimate"]
+
+# Creazione di un data frame unificato
+years <- c(rep(2020, length(betas_2020)), rep(2021, length(betas_2021)), rep(2022, length(betas_2022)))
+predictors <- rep(c("nuoviCasi_t", "admHosp_t", "admICU_t", "morti_t","Fdose", "Sdose", "Bdose"), 3)
+betas <- c(betas_2020, betas_2021, betas_2022)
+
+effects_df <- data.frame(
+  Year = years,
+  Predictor = predictors,
+  Beta = betas
+)
+
+# Creazione del grafico
+library(ggplot2)
+ggplot(effects_df, aes(x = Predictor, y = Beta, group = Year, color = as.factor(Year))) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Andamento dei Fixed Effects (Betas) da Predictor_1 a Predictor_7",
+       x = "Predictors",
+       y = "Valore dell'Effetto",
+       color = "Anno") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+ggplot(effects_df, aes(x = as.factor(Year), y = Beta, group = Predictor, color = Predictor)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Andamento dei Fixed Effects (Betas) per Anno",
+       x = "Anno",
+       y = "Valore dell'Effetto",
+       color = "Predictor") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+
+```{r setup, include=FALSE}
+summary_2020 <- summary(mlvar_CH_2020_1$output$temporal$I_t)
+summary_2021 <- summary(mlvar_CH_2021_1$output$temporal$I_t)
+summary_2022 <- summary(mlvar_CH_2022_1$output$temporal$I_t)
+# Estrazione dei dati dai summary
+betas_2020 <- summary_2020$coefficients[1:7, "Estimate"]
+betas_2021 <- summary_2021$coefficients[1:7, "Estimate"]
+betas_2022 <- summary_2022$coefficients[1:7, "Estimate"]
+
+# Creazione di un data frame unificato
+years <- c(rep(2020, length(betas_2020)), rep(2021, length(betas_2021)), rep(2022, length(betas_2022)))
+predictors <- rep(c("nuoviCasi_t", "admHosp_t", "admICU_t", "morti_t","Fdose", "Sdose", "Bdose"), 3)
+betas <- c(betas_2020, betas_2021, betas_2022)
+
+effects_df <- data.frame(
+  Year = years,
+  Predictor = predictors,
+  Beta = betas
+)
+
+# Creazione del grafico
+library(ggplot2)
+ggplot(effects_df, aes(x = Predictor, y = Beta, group = Year, color = as.factor(Year))) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Andamento dei Fixed Effects (Betas) da Predictor_1 a Predictor_7",
+       x = "Predictors",
+       y = "Valore dell'Effetto",
+       color = "Anno") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+ggplot(effects_df, aes(x = as.factor(Year), y = Beta, group = Predictor, color = Predictor)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Andamento dei Fixed Effects (Betas) per Anno",
+       x = "Anno",
+       y = "Valore dell'Effetto",
+       color = "Predictor") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+```
+
+
