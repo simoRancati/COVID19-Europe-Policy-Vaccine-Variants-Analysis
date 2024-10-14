@@ -4,7 +4,7 @@ This repository contains the code for replicating the analysis presented in the 
 ## Requirements and installation
 
 **Dependencies**
-DeepAutoCoV mainly depends on the **Python** scientific stack: 
+**Python** scientific stack: 
 1. pandas <code>pip install pandas==1.5.3</code>
 2. numpy <code>pip install numpy==1.24.1</code>
 3. statistics <code>pip install statistics==1.0.3.5</code>
@@ -13,7 +13,7 @@ DeepAutoCoV mainly depends on the **Python** scientific stack:
 6. scikit-learn <code>pip install scikit-learn==1.2.1</code>
 7. biopython <code>pip install biopython==1.80</code> 
 
-In pre-processing, libraries belonging to the **R language** are also required:
+**R language**:
 1. BiocManger <code>install.packages("BiocManager")</code>
 2. Biostrings <code>BiocManager::install("Biostrings")</code>
 3. stringr <code>install.packages("stringr")</code>
