@@ -1,0 +1,1545 @@
+---
+title: "Visualizing_results"
+author: "Simone_Rancati"
+date: "2024-06-30"
+output: html_document
+---
+# LOAD DATASET
+```{r setup, include=FALSE}
+# load libraries
+library(tidyverse)
+library(psych)
+library(plyr)
+library(ggplot2)
+library(pompom)
+library(mlVAR)
+library(lme4)
+library(plm)
+library(dplyr)
+library(Matrix)
+library(pheatmap)
+library(ggplot2)
+library(reshape2)  # If needed for melting the data frame
+library(lubridate)
+library(zoo)
+
+# load dataset 
+load('/Users/utente/Desktop/Periscope/Tesi_Magistrale_Chiara/Code_New_PAPER/model_dataset.RData')
+```
+
+# CORRELETION ANALISYS 
+# 2020
+```{r setup, include=FALSE}
+
+# Rimuovere eventuali valori NA (opzionale, se il tuo DataFrame contiene NA)
+df_cdsi_2020 <- na.omit(countryDataSI_2020)
+
+# Calcolare la matrice di correlazione
+correlation_matrix <- cor(df_cdsi_2020, use = "complete.obs")
+
+# Visualizzare la matrice di correlazione
+print(correlation_matrix)
+
+# Funzione per calcolare p-value delle correlazioni
+correlation_with_pvalues <- function(df) {
+  # Ottenere i nomi delle colonne
+  column_names <- colnames(df)
+  n <- ncol(df)
+  
+  # Creare una matrice vuota per i p-value
+  p_values <- matrix(NA, n, n)
+  colnames(p_values) <- column_names
+  rownames(p_values) <- column_names
+  
+  # Calcolare i p-value per ogni coppia di variabili
+  for (i in 1:n) {
+    for (j in i:n) {
+      test_result <- cor.test(df[,i], df[,j])
+      p_values[i,j] <- test_result$p.value
+      p_values[j,i] <- test_result$p.value
+    }
+  }
+  return(p_values)
+}
+
+# Applicare la funzione al tuo DataFrame
+pvalue_matrix <- correlation_with_pvalues(df_cdsi_2020)
+
+# Visualizzare la matrice di p-value
+print(pvalue_matrix)
+
+
+```
+
+# 2021
+```{r setup, include=FALSE}
+
+# Rimuovere eventuali valori NA (opzionale, se il tuo DataFrame contiene NA)
+df_cdsi_2021 <- na.omit(countryDataSI_2021)
+
+# Calcolare la matrice di correlazione
+correlation_matrix <- cor(df_cdsi_2021, use = "complete.obs")
+
+# Visualizzare la matrice di correlazione
+print(correlation_matrix)
+
+# Funzione per calcolare p-value delle correlazioni
+correlation_with_pvalues <- function(df) {
+  # Ottenere i nomi delle colonne
+  column_names <- colnames(df)
+  n <- ncol(df)
+  
+  # Creare una matrice vuota per i p-value
+  p_values <- matrix(NA, n, n)
+  colnames(p_values) <- column_names
+  rownames(p_values) <- column_names
+  
+  # Calcolare i p-value per ogni coppia di variabili
+  for (i in 1:n) {
+    for (j in i:n) {
+      test_result <- cor.test(df[,i], df[,j])
+      p_values[i,j] <- test_result$p.value
+      p_values[j,i] <- test_result$p.value
+    }
+  }
+  return(p_values)
+}
+
+# Applicare la funzione al tuo DataFrame
+pvalue_matrix <- correlation_with_pvalues(df_cdsi_2021)
+
+# Visualizzare la matrice di p-value
+print(pvalue_matrix)
+
+
+```
+
+# 2022
+```{r setup, include=FALSE}
+
+# Rimuovere eventuali valori NA (opzionale, se il tuo DataFrame contiene NA)
+df_cdsi_2022 <- na.omit(countryDataSI_2022)
+
+# Calcolare la matrice di correlazione
+correlation_matrix <- cor(df_cdsi_2022, use = "complete.obs")
+
+# Visualizzare la matrice di correlazione
+print(correlation_matrix)
+
+# Funzione per calcolare p-value delle correlazioni
+correlation_with_pvalues <- function(df) {
+  # Ottenere i nomi delle colonne
+  column_names <- colnames(df)
+  n <- ncol(df)
+  
+  # Creare una matrice vuota per i p-value
+  p_values <- matrix(NA, n, n)
+  colnames(p_values) <- column_names
+  rownames(p_values) <- column_names
+  
+  # Calcolare i p-value per ogni coppia di variabili
+  for (i in 1:n) {
+    for (j in i:n) {
+      test_result <- cor.test(df[,i], df[,j])
+      p_values[i,j] <- test_result$p.value
+      p_values[j,i] <- test_result$p.value
+    }
+  }
+  return(p_values)
+}
+
+# Applicare la funzione al tuo DataFrame
+pvalue_matrix <- correlation_with_pvalues(df_cdsi_2022)
+
+# Visualizzare la matrice di p-value
+print(pvalue_matrix)
+
+
+```
+
+# AIC boxplot 
+
+```{r setup, include=FALSE}
+str(mlVARcompare(mlvar_SI_2020_1, mlvar_SI_2020_2, mlvar_SI_2020_3))
+
+# Example to extract AIC and BIC for a specific variable name, adjust as needed
+results_2020 <- mlVARcompare(mlvar_SI_2020_1, mlvar_SI_2020_2, mlvar_SI_2020_3)
+aic_2020 <- sapply(results_2020, function(x) x$aic)  # Assuming 'aic' is accessible directly
+bic_2020 <- sapply(results_2020, function(x) x$bic)
+
+results_2021 <- mlVARcompare(mlvar_SI_2021_1, mlvar_SI_2021_2, mlvar_SI_2021_3)
+aic_2021 <- sapply(results_2021, function(x) x$aic)
+bic_2021 <- sapply(results_2021, function(x) x$bic)
+
+results_2022 <- mlVARcompare(mlvar_SI_2022_1, mlvar_SI_2022_2, mlvar_SI_2022_3)
+aic_2022 <- sapply(results_2022, function(x) x$aic)
+bic_2022 <- sapply(results_2022, function(x) x$bic)
+
+```
+
+# 2020 
+
+```{r setup, include=FALSE}
+df <- as.data.frame(aic_2020)
+
+# Adding row and column names if not already present
+names(df) <- c("I_t", "newCases_t", "admHosp_t", "admICU_t", "deaths_t",
+               "firstDose", "secondDose", "boosterDose", "Alpha", "Beta", "Delta", "Zeta")
+df$Model <- factor(1:nrow(df))
+
+# Rename the 'Model' column to 'week'
+names(df)[names(df) == "Model"] <- "week"
+
+# Convert the dataframe to a long format, keeping 'week' as the identifier
+df_long <- melt(df, id.vars = "week")
+
+# Create a boxplot for each week, removing outliers and adjusting axis limits
+p_aic_2020 <- ggplot(df_long, aes(x = as.factor(week), y = value, fill = as.factor(week))) +
+  geom_boxplot(outlier.shape = NA) +  # Remove outliers from the plot
+  coord_cartesian(ylim = quantile(df_long$value, c(0.05, 0.95))) +  # Adjust Y-axis limits to the 5th and 95th percentiles
+  theme_minimal() +
+  labs(title = "AIC - 2020",
+       x = "Week",
+       y = "Value",
+       fill = "Week") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 22),  # Increase X-axis text size
+        axis.text.y = element_text(size = 22),  # Increase Y-axis text size
+        axis.title.x = element_text(size = 24),  # Increase X-axis title size
+        axis.title.y = element_text(size = 24),  # Increase Y-axis title size
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 32),  # Center and bold the title
+        legend.text = element_text(size = 22),  # Increase legend text size
+        legend.title = element_text(size = 22),
+        legend.key.size = unit(2, "lines")) # Center and bold the title
+
+
+ggsave("AIC_Value_2020.png", plot = p_aic_2020, width = 14, height = 10, dpi = 1000)
+
+# Perform a Kruskal-Wallis test to check for statistical differences between weeks
+kruskal_results <- kruskal.test(value ~ week, data = df_long)
+kruskal_results
+```
+
+# 2020 NORMALIZED 
+
+```{r setup, include=FALSE}
+df_normalized <- as.data.frame(scale(df[, -ncol(df)]))  # Exclude the 'week' column before scaling
+df_normalized$week <- df$week  # Add the 'week' column back
+
+# Convert the normalized dataframe to a long format, keeping 'week' as the identifier
+df_long_normalized <- melt(df_normalized, id.vars = "week")
+
+# Create a boxplot for each week with normalized data, removing outliers and adjusting axis limits
+p_aic_2020_normalized <- ggplot(df_long_normalized, aes(x = as.factor(week), y = value, fill = as.factor(week))) +
+  geom_boxplot(outlier.shape = NA) +  # Remove outliers from the plot
+  coord_cartesian(ylim = quantile(df_long_normalized$value, c(0.05, 0.95))) +  # Adjust Y-axis limits to the 5th and 95th percentiles
+  theme_minimal() +
+  labs(title = "AIC - 2020 (Normalized)",
+       x = "Week",
+       y = "Normalized Value",
+       fill = "Week") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 22),  # Increase X-axis text size
+        axis.text.y = element_text(size = 22),  # Increase Y-axis text size
+        axis.title.x = element_text(size = 24),  # Increase X-axis title size
+        axis.title.y = element_text(size = 24),  # Increase Y-axis title size
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 32),  # Center and bold the title
+        legend.text = element_text(size = 22),  # Increase legend text size
+        legend.title = element_text(size = 22),  # Increase legend title size
+        legend.key.size = unit(2, "lines"))  # Increase the size of the legend keys
+
+# Save the plot
+ggsave("AIC_Value_2020_Normalized.png", plot = p_aic_2020_normalized, width = 14, height = 10, dpi = 1000)
+
+# Perform a Kruskal-Wallis test on normalized data to check for statistical differences between weeks
+kruskal_results_normalized <- kruskal.test(value ~ week, data = df_long_normalized)
+kruskal_results_normalized
+
+```
+
+# 2021
+
+```{r setup, include=FALSE}
+df <- as.data.frame(aic_2021)
+
+# Adding row and column names if not already present
+names(df) <- c("I_t", "nuoviCasi_t", "admHosp_t", "admICU_t", "morti_t","Fdose", "Sdose", "Bdose", "Alpha", "Beta", "Delta", "Zeta", "Theta", "Gamma", "Epsilon", "Eta", "Kappa", "Iota", "Mu", "Lambda", "GH490R", "Omicron")
+df$Model <- factor(1:nrow(df))
+
+# Rename the 'Model' column to 'week'
+names(df)[names(df) == "Model"] <- "week"
+
+# Convert the dataframe to a long format, keeping 'week' as the identifier
+df_long <- melt(df, id.vars = "week")
+
+# Create a boxplot for each week, removing outliers and adjusting axis limits
+p_aic_2021 <- ggplot(df_long, aes(x = as.factor(week), y = value, fill = as.factor(week))) +
+  geom_boxplot(outlier.shape = NA) +  # Remove outliers from the plot
+  coord_cartesian(ylim = quantile(df_long$value, c(0.05, 0.95))) +  # Adjust Y-axis limits to the 5th and 95th percentiles
+  theme_minimal() +
+  labs(title = "AIC - 2021",
+       x = "Week",
+       y = "Value",
+       fill = "Week") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 22),  # Increase X-axis text size
+        axis.text.y = element_text(size = 22),  # Increase Y-axis text size
+        axis.title.x = element_text(size = 24),  # Increase X-axis title size
+        axis.title.y = element_text(size = 24),  # Increase Y-axis title size
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 32),  # Center and bold the title
+        legend.text = element_text(size = 22),  # Increase legend text size
+        legend.title = element_text(size = 22),
+        legend.key.size = unit(2, "lines")) # Center and bold the title
+
+
+ggsave("AIC_Value_2021.png", plot = p_aic_2021, width = 14, height = 10, dpi = 1000)
+
+# Perform a Kruskal-Wallis test to check for statistical differences between weeks
+kruskal_results <- kruskal.test(value ~ week, data = df_long)
+kruskal_results
+```
+.
+# 2021 - NORMALIZED 
+```{r}
+library(ggplot2)
+library(reshape2)
+
+# Convert 'df' to a dataframe and add column names
+df <- as.data.frame(aic_2021)
+names(df) <- c("I_t", "nuoviCasi_t", "admHosp_t", "admICU_t", "morti_t",
+               "Fdose", "Sdose", "Bdose", "Alpha", "Beta", "Delta", "Zeta",
+               "Theta", "Gamma", "Epsilon", "Eta", "Kappa", "Iota", "Mu",
+               "Lambda", "GH490R", "Omicron")
+df$Model <- factor(1:nrow(df))
+
+# Rename the 'Model' column to 'week'
+names(df)[names(df) == "Model"] <- "week"
+
+# Normalize the data using z-score normalization (excluding the 'week' column)
+df_normalized <- as.data.frame(scale(df[, -ncol(df)]))  # Exclude the 'week' column before scaling
+df_normalized$week <- df$week  # Add the 'week' column back
+
+# Convert the normalized dataframe to a long format, keeping 'week' as the identifier
+df_long_normalized <- melt(df_normalized, id.vars = "week")
+
+# Create a boxplot for each week with normalized data, removing outliers and adjusting axis limits
+p_aic_2021_normalized <- ggplot(df_long_normalized, aes(x = as.factor(week), y = value, fill = as.factor(week))) +
+  geom_boxplot(outlier.shape = NA) +  # Remove outliers from the plot
+  coord_cartesian(ylim = quantile(df_long_normalized$value, c(0.05, 0.95))) +  # Adjust Y-axis limits to the 5th and 95th percentiles
+  theme_minimal() +
+  labs(title = "AIC - 2021 (Normalized)",
+       x = "Week",
+       y = "Normalized Value",
+       fill = "Week") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 22),  # Increase X-axis text size
+        axis.text.y = element_text(size = 22),  # Increase Y-axis text size
+        axis.title.x = element_text(size = 24),  # Increase X-axis title size
+        axis.title.y = element_text(size = 24),  # Increase Y-axis title size
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 32),  # Center and bold the title
+        legend.text = element_text(size = 22),  # Increase legend text size
+        legend.title = element_text(size = 22),  # Increase legend title size
+        legend.key.size = unit(2, "lines"))  # Increase the size of the legend keys
+
+# Save the normalized plot
+ggsave("AIC_Value_2021_Normalized.png", plot = p_aic_2021_normalized, width = 14, height = 10, dpi = 1000)
+
+# Perform a Kruskal-Wallis test on normalized data to check for statistical differences between weeks
+kruskal_results_normalized <- kruskal.test(value ~ week, data = df_long_normalized)
+kruskal_results_normalized
+```
+#2022
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(reshape2)
+
+# Convert 'df' to a dataframe and add column names
+df <- as.data.frame(aic_2022)
+names(df) <- c("I_t", "nuoviCasi_t", "admHosp_t", "admICU_t", "morti_t",
+               "Fdose", "Sdose", "Bdose", "Delta", "GH490R", "Omicron",
+               "Alpha", "BA.2.75", "CH.1.1", "XBB", "XBB.1.5")
+df$Model <- factor(1:nrow(df))
+
+# Rename the 'Model' column to 'week'
+names(df)[names(df) == "Model"] <- "week"
+
+# Convert the dataframe to a long format, keeping 'week' as the identifier
+df_long <- melt(df, id.vars = "week")
+
+# Create a boxplot for each week, removing outliers and adjusting axis limits
+p_aic_2022 <- ggplot(df_long, aes(x = as.factor(week), y = value, fill = as.factor(week))) +
+  geom_boxplot(outlier.shape = NA) +  # Remove outliers from the plot
+  coord_cartesian(ylim = quantile(df_long$value, c(0.05, 0.95))) +  # Adjust Y-axis limits to the 5th and 95th percentiles
+  theme_minimal() +
+  labs(title = "AIC - 2022",
+       x = "Week",
+       y = "Value",
+       fill = "Week") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 22),  # Increase X-axis text size
+        axis.text.y = element_text(size = 22),  # Increase Y-axis text size
+        axis.title.x = element_text(size = 24),  # Increase X-axis title size
+        axis.title.y = element_text(size = 24),  # Increase Y-axis title size
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 32),  # Center and bold the title
+        legend.text = element_text(size = 22),  # Increase legend text size
+        legend.title = element_text(size = 22),  # Increase legend title size
+        legend.key.size = unit(2, "lines"))  # Increase the size of the legend keys
+
+# Save the plot with specified text sizes
+ggsave("AIC_Value_2022.png", plot = p_aic_2022, width = 14, height = 10, dpi = 1000)
+
+# Perform a Kruskal-Wallis test to check for statistical differences between weeks
+kruskal_results <- kruskal.test(value ~ week, data = df_long)
+kruskal_results
+```
+
+# 2022 - NORMALIZED 
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(reshape2)
+
+# Convert 'df' to a dataframe and add column names
+df <- as.data.frame(aic_2022)
+names(df) <- c("I_t", "nuoviCasi_t", "admHosp_t", "admICU_t", "morti_t",
+               "Fdose", "Sdose", "Bdose", "Delta", "GH490R", "Omicron",
+               "Alpha", "BA.2.75", "CH.1.1", "XBB", "XBB.1.5")
+df$Model <- factor(1:nrow(df))
+
+# Rename the 'Model' column to 'week'
+names(df)[names(df) == "Model"] <- "week"
+
+# Normalize the data using z-score normalization (excluding the 'week' column)
+df_normalized <- as.data.frame(scale(df[, -ncol(df)]))  # Exclude the 'week' column before scaling
+df_normalized$week <- df$week  # Add the 'week' column back
+
+# Convert the normalized dataframe to a long format, keeping 'week' as the identifier
+df_long_normalized <- melt(df_normalized, id.vars = "week")
+
+# Create a boxplot for each week with normalized data, removing outliers and adjusting axis limits
+p_aic_2022_normalized <- ggplot(df_long_normalized, aes(x = as.factor(week), y = value, fill = as.factor(week))) +
+  geom_boxplot(outlier.shape = NA) +  # Remove outliers from the plot
+  coord_cartesian(ylim = quantile(df_long_normalized$value, c(0.05, 0.95))) +  # Adjust Y-axis limits to the 5th and 95th percentiles
+  theme_minimal() +
+  labs(title = "AIC - 2022 (Normalized)",
+       x = "Week",
+       y = "Normalized Value",
+       fill = "Week") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 22),  # Increase X-axis text size
+        axis.text.y = element_text(size = 22),  # Increase Y-axis text size
+        axis.title.x = element_text(size = 24),  # Increase X-axis title size
+        axis.title.y = element_text(size = 24),  # Increase Y-axis title size
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 32),  # Center and bold the title
+        legend.text = element_text(size = 22),  # Increase legend text size
+        legend.title = element_text(size = 22),  # Increase legend title size
+        legend.key.size = unit(2, "lines"))  # Increase the size of the legend keys
+
+# Display the plot
+print(p_aic_2022_normalized)
+
+# Save the normalized plot
+ggsave("AIC_Value_2022_Normalized.png", plot = p_aic_2022_normalized, width = 14, height = 10, dpi = 1000)
+
+# Perform a Kruskal-Wallis test on normalized data to check for statistical differences between weeks
+kruskal_results_normalized <- kruskal.test(value ~ week, data = df_long_normalized)
+kruskal_results_normalized
+```
+
+# GISAID
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+
+# Converti in formato data
+data_variant$Collection_Date <- as.Date(data_variant$Collection_Date)
+
+# Ordina i dati per data di raccolta per garantire il calcolo corretto delle settimane cumulative
+data_variant <- data_variant %>% arrange(Collection_Date)
+
+# Calcola l'anno e la settimana
+data_variant$year <- year(data_variant$Collection_Date)
+data_variant$week <- week(data_variant$Collection_Date)
+
+# Calcola il numero di settimane cumulative dall'inizio del dataset
+data_variant$cumulative_week <- as.integer(difftime(data_variant$Collection_Date, min(data_variant$Collection_Date), units = "weeks"))
+
+# Seleziona le colonne rilevanti e filtra per anni specifici
+dV <- data_variant %>%
+  select(Variant, cumulative_week, year, week) %>%
+  filter(year %in% c(2020, 2021, 2022))
+# Modifica il nome della variante
+dV <- dV %>%
+  mutate(Variant = ifelse(Variant == "(XBB+XBB.*", "(XBB+XBB.*)", Variant))
+
+# Raggruppa per variante e settimana cumulativa, poi conta le sequenze
+counted_data <- dV %>%
+  group_by(Variant, cumulative_week) %>%
+  tally(name = "sequences_count")
+
+# Crea il grafico a linee con ggplot2
+p_GISAID <- ggplot(counted_data, aes(x = cumulative_week, y = sequences_count, group = Variant, color = Variant)) +
+  geom_line() +
+  theme_minimal() +
+  labs(title = "Sequence Count by Variant per Cumulative Week",
+       x = "Weeks",
+       y = "Number of Sequences",
+       color = "Variant",
+       fill = "Variant") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 22),  # Increase X-axis text size
+        axis.text.y = element_text(size = 22),  # Increase Y-axis text size
+        axis.title.x = element_text(size = 24),  # Increase X-axis title size
+        axis.title.y = element_text(size = 24),  # Increase Y-axis title size
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 32),  # Center and bold the title
+        legend.text = element_text(size = 22),  # Increase legend text size
+        legend.title = element_text(size = 22),  # Increase legend title size
+        legend.key.size = unit(2, "lines"))  # Increase the size of the legend keys
+
+ggsave("GISAID.png", plot = p_GISAID, width = 14, height = 10, dpi = 1000)
+```
+
+# VACCINE 
+
+```{r setup, include=FALSE}
+library(dplyr)
+
+# Filtrare per il gruppo target "ALL"
+data_vaccine_filtered <- data_vaccine %>%
+  filter(TargetGroup == "ALL")
+
+# Selezionare le colonne di interesse
+db_vaccine_filtered_column <- data_vaccine_filtered %>%
+  select(FirstDose, SecondDose, DoseAdditional1, DoseAdditional2, DoseAdditional3, YearWeekISO)
+
+db_vaccine_filtered_column <- db_vaccine_filtered_column %>%
+  mutate(Booster = DoseAdditional1 + DoseAdditional2 + DoseAdditional3) %>%
+  select(-DoseAdditional1, -DoseAdditional2, -DoseAdditional3)
+
+# Ottenere le settimane uniche
+unique_weeks <- unique(db_vaccine_filtered_column$YearWeekISO)
+
+# Inizializzare un dataframe vuoto per i risultati sommari
+db_vaccine_summary <- data.frame(YearWeekISO = character(),
+                                 FirstDose = numeric(),
+                                 SecondDose = numeric(),
+                                 Booster = numeric(),
+                                 stringsAsFactors = FALSE)
+
+# Ciclo for per calcolare i totali per ogni settimana unica
+for (week in unique_weeks) {
+  # Filtrare per la settimana corrente
+  week_data <- db_vaccine_filtered_column %>%
+    filter(YearWeekISO == week)
+  
+  # Calcolare i totali
+  total_first_dose <- sum(week_data$FirstDose, na.rm = TRUE)
+  total_second_dose <- sum(week_data$SecondDose, na.rm = TRUE)
+  total_booster <- sum(week_data$Booster, na.rm = TRUE)
+  
+  # Aggiungere i risultati al dataframe di riepilogo
+  db_vaccine_summary <- rbind(db_vaccine_summary, 
+                              data.frame(YearWeekISO = week,
+                                         FirstDose = total_first_dose,
+                                         SecondDose = total_second_dose,
+                                         Booster = total_booster))
+}
+
+# Visualizzare il risultato
+print(db_vaccine_summary)
+
+# Creazione del grafico con visualizzazione ogni 50 elementi
+p_VACCINE <- ggplot(db_vaccine_summary, aes(x = YearWeekISO)) +
+  geom_line(aes(y = FirstDose, color = "First Dose")) +
+  geom_line(aes(y = SecondDose, color = "Second Dose")) +
+  geom_line(aes(y = Booster, color = "Booster")) +
+  geom_point(aes(y = FirstDose, color = "First Dose")) +
+  geom_point(aes(y = SecondDose, color = "Second Dose")) +
+  geom_point(aes(y = Booster, color = "Booster")) +
+  labs(title = "Weekly Vaccine Doses Administered",
+       x = "Weeks",
+       y = "Number of Doses",
+       color = "Dose Type") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 22),  # Aumenta la dimensione del testo dell'asse X
+        axis.text.y = element_text(size = 22),  # Aumenta la dimensione del testo dell'asse Y
+        axis.title.x = element_text(size = 24),  # Aumenta la dimensione del titolo dell'asse X
+        axis.title.y = element_text(size = 24),  # Aumenta la dimensione del titolo dell'asse Y
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 32),  # Centra e rendi il titolo in grassetto
+        legend.text = element_text(size = 22),  # Aumenta la dimensione del testo della legenda
+        legend.title = element_text(size = 22),  # Aumenta la dimensione del titolo della legenda
+        legend.key.size = unit(1, "lines")) +  # Aumenta la dimensione dei simboli della legenda
+  scale_x_discrete(breaks = db_vaccine_summary$YearWeekISO[seq(1, nrow(db_vaccine_summary), 50)])
+
+ggsave("VACCINE.png", plot = p_VACCINE, width = 16, height = 12, dpi = 1000)
+```
+
+# FIXED EFFECT 
+# 2020
+```{r setup, include=FALSE}
+library(pheatmap)
+library(reshape2)
+
+# Estrarre la matrice dei valori medi di Beta
+beta_mean <- mlvar_SI_2020_1[["results"]][["Beta"]][["mean"]]
+df_mean <- data.frame(beta_mean)
+
+# Estrarre la matrice dei p-value di Beta
+beta_p <- mlvar_SI_2020_1[["results"]][["Beta"]][["P"]]
+df_p <- data.frame(beta_p)
+index_to_remove <- 8
+
+# Rimuovi la riga e la colonna "Booster dose" dai data frame originali
+df_mean_filtered <- df_mean[-index_to_remove, -index_to_remove]
+df_p_filtered <- df_p[-index_to_remove, -index_to_remove]
+
+# Rimuovere le colonne con valori NA
+df_mean_clean <- df_mean_filtered[, colSums(is.na(df_mean_filtered)) == 0]
+df_p_clean <- df_p_filtered[, colSums(is.na(df_p_filtered)) == 0]
+
+# Convertire i dataframe in matrici
+clean_matrix_mean <- as.matrix(df_mean_clean)
+clean_matrix_p <- as.matrix(df_p_clean)
+
+# Funzione per determinare se il numero è significativo e definire i colori
+number_color_fun <- function(p_value) {
+  if (p_value < 0.05) {
+    return("red")  # Colore per i numeri significativi
+  } else {
+    return("black")  # Colore per i numeri non significativi
+  }
+}
+
+# Applicare la funzione per determinare i colori dei numeri
+number_colors <- matrix(mapply(number_color_fun, clean_matrix_p), 
+                        nrow = nrow(clean_matrix_p), 
+                        ncol = ncol(clean_matrix_p))
+
+# Nuove etichette per l'asse delle X e delle Y
+new_labels_row <- c("I_t", "New Cases", "admHosp", "admICU", "death",
+                    "First dose", "Second dose", "Alpha", "Beta", "Delta", "Zeta")
+new_labels_col <- c("I_t", "New Cases", "admHosp", "admICU", "death",
+                    "First dose", "Second dose", "Alpha", "Beta", "Delta", "Zeta")
+
+# Generare la heatmap
+p_heatmap_SI_2020 <- pheatmap(clean_matrix_mean, 
+         main = "Heatmap of Beta Mean 2020",
+         color = colorRampPalette(c("blue", "white", "orange"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = round(clean_matrix_mean, 2),
+         number_color = number_colors,
+         labels_row = new_labels_row,  # Etichette per l'asse Y
+         labels_col = new_labels_col,  # Etichette per l'asse X
+         angle_col = 45,  # Ruota le etichette per migliorare la leggibilità
+         cellwidth = 30, cellheight = 30)  # Modifica la dimensione delle celle per una migliore disposizione
+
+ggsave("HEATMAP_2020_SI.png", plot = p_heatmap_SI_2020, width = 16, height = 12, dpi = 1000)
+
+```
+# 2020
+
+```{r setup, include=FALSE}
+library(pheatmap)
+library(reshape2)
+
+# Estrarre la matrice dei valori medi di Beta
+beta_mean <- mlvar_SI_2021_1[["results"]][["Beta"]][["mean"]]
+df_mean <- data.frame(beta_mean)
+
+# Estrarre la matrice dei p-value di Beta
+beta_p <- mlvar_SI_2021_1[["results"]][["Beta"]][["P"]]
+df_p <- data.frame(beta_p)
+
+rows_to_remove <- c("")
+df_mean_clean <- df_mean_clean[!row.names(df_mean_clean) %in% rows_to_remove, ]
+df_p_clean <- df_p_clean[!row.names(df_p_clean) %in% rows_to_remove, ]
+
+# Rimuovere le colonne con valori NA
+df_mean_clean <- df_mean[, colSums(is.na(df_mean)) == 0]
+df_p_clean <- df_p[, colSums(is.na(df_p)) == 0]
+
+# Convertire i dataframe in matrici
+clean_matrix_mean <- as.matrix(df_mean_clean)
+clean_matrix_p <- as.matrix(df_p_clean)
+
+# Funzione per determinare se il numero è significativo e definire i colori
+number_color_fun <- function(p_value) {
+  if (p_value < 0.05) {
+    return("red")  # Colore per i numeri significativi
+  } else {
+    return("black")  # Colore per i numeri non significativi
+  }
+}
+```
+
+
+# 2021
+
+```{r setup, include=FALSE}
+library(pheatmap)
+library(reshape2)
+
+# Estrarre la matrice dei valori medi di Beta
+beta_mean <- mlvar_SI_2021_1[["results"]][["Beta"]][["mean"]]
+df_mean <- data.frame(beta_mean)
+
+# Estrarre la matrice dei p-value di Beta
+beta_p <- mlvar_SI_2021_1[["results"]][["Beta"]][["P"]]
+df_p <- data.frame(beta_p)
+
+# Rimuovere le colonne con valori NA
+df_mean_clean <- df_mean[, colSums(is.na(df_mean)) == 0]
+df_p_clean <- df_p[, colSums(is.na(df_p)) == 0]
+
+# Convertire i dataframe in matrici
+clean_matrix_mean <- as.matrix(df_mean_clean)
+clean_matrix_p <- as.matrix(df_p_clean)
+
+# Funzione per determinare se il numero è significativo e definire i colori
+number_color_fun <- function(p_value) {
+  if (p_value < 0.05) {
+    return("red")  # Colore per i numeri significativi
+  } else {
+    return("black")  # Colore per i numeri non significativi
+  }
+}
+
+# Applicare la funzione per determinare i colori dei numeri
+number_colors <- matrix(mapply(number_color_fun, clean_matrix_p), 
+                        nrow = nrow(clean_matrix_p), 
+                        ncol = ncol(clean_matrix_p))
+
+# Nuove etichette per l'asse delle X e delle Y
+new_labels_row <- c("I_t", "New Cases", "admHosp", "admICU", "death","First dose", "Second dose", "Booster dose", "Alpha", "Beta", "Delta", "Zeta", "Theta", "Gamma", "Epsilon", "Eta", "Kappa", "Iota", "Mu", "Lambda", "GH490R", "Omicron")
+new_labels_col <- c("I_t", "New Cases", "admHosp_t", "admICU_t", "morti_t","First dose", "Second dose", "Booster dose", "Alpha", "Beta", "Delta", "Zeta", "Theta", "Gamma", "Epsilon", "Eta", "Kappa", "Iota", "Mu", "Lambda", "GH490R", "Omicron")
+
+# Generare la heatmap
+p_heatmap_SI_2021 <- pheatmap(clean_matrix_mean, 
+         main = "Heatmap of Beta Mean 2021",
+         color = colorRampPalette(c("blue", "white", "orange"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = round(clean_matrix_mean, 2),
+         number_color = number_colors,
+         labels_row = new_labels_row,  # Etichette per l'asse Y
+         labels_col = new_labels_col,  # Etichette per l'asse X
+         angle_col = 45,  # Ruota le etichette per migliorare la leggibilità
+         cellwidth = 30, cellheight = 30)  # Modifica la dimensione delle celle per una migliore disposizione
+
+ggsave("HEATMAP_2021_SI.png", plot = p_heatmap_SI_2021, width = 16, height = 12, dpi = 1000)
+
+```
+
+# 2021 FILTERED
+```{r setup, include=FALSE}
+
+library(pheatmap)
+library(reshape2)
+
+# Estrarre la matrice dei valori medi di Beta
+beta_mean <- mlvar_SI_2021_1[["results"]][["Beta"]][["mean"]]
+df_mean <- data.frame(beta_mean)
+
+# Estrarre la matrice dei p-value di Beta
+beta_p <- mlvar_SI_2021_1[["results"]][["Beta"]][["P"]]
+df_p <- data.frame(beta_p)
+
+index_to_remove <- 8
+
+# Rimuovi la riga e la colonna "Booster dose" dai data frame originali
+df_mean_filtered <- df_mean[-index_to_remove, -index_to_remove]
+df_p_filtered <- df_p[-index_to_remove, -index_to_remove]
+
+# Rimuovere le colonne con valori NA
+df_mean_clean <- df_mean_filtered[, colSums(is.na(df_mean_filtered)) == 0]
+df_p_clean <- df_p_filtered[, colSums(is.na(df_p_filtered)) == 0]
+
+rows_to_remove <- c("Eta", "Kappa", "Iota", "Mu", "Lambda", "GH490R")
+df_mean_clean <- df_mean_clean[!row.names(df_mean_clean) %in% rows_to_remove, ]
+df_p_clean <- df_p_clean[!row.names(df_p_clean) %in% rows_to_remove, ]
+
+# Convertire i dataframe in matrici
+clean_matrix_mean <- as.matrix(df_mean_clean)
+clean_matrix_p <- as.matrix(df_p_clean)
+
+# Funzione per determinare se il numero è significativo e definire i colori
+number_color_fun <- function(p_value) {
+  if (p_value < 0.05) {
+    return("red")  # Colore per i numeri significativi
+  } else {
+    return("black")  # Colore per i numeri non significativi
+  }
+}
+
+# Applicare la funzione per determinare i colori dei numeri
+number_colors <- matrix(mapply(number_color_fun, clean_matrix_p), 
+                        nrow = nrow(clean_matrix_p), 
+                        ncol = ncol(clean_matrix_p))
+
+# Nuove etichette per l'asse delle X e delle Y
+new_labels_row <- c("I_t", "New Cases", "admHosp", "admICU", "death","First dose", "Second dose", "Booster dose", "Alpha", "Beta", "Delta", "Zeta", "Theta", "Gamma", "Epsilon", "Omicron")
+new_labels_col <- c("I_t", "New Cases", "admHosp", "admICU", "death","First dose", "Second dose", "Booster dose", "Alpha", "Beta", "Delta", "Zeta", "Theta", "Gamma", "Epsilon", "Eta", "Kappa", "Iota", "Mu", "Lambda", "GH490R", "Omicron")
+
+# Generare la heatmap
+p_heatmap_SI_2021 <- pheatmap(clean_matrix_mean, 
+         main = "Heatmap of Beta Mean 2021",
+         color = colorRampPalette(c("blue", "white", "orange"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = round(clean_matrix_mean, 2),
+         number_color = number_colors,
+         labels_row = new_labels_row,  # Etichette per l'asse Y
+         labels_col = new_labels_col,  # Etichette per l'asse X
+         angle_col = 45,  # Ruota le etichette per migliorare la leggibilità
+         cellwidth = 30, cellheight = 30)  # Modifica la dimensione delle celle per una migliore disposizione
+
+ggsave("HEATMAP_2021_SI_FILTERED.png", plot = p_heatmap_SI_2021, width = 16, height = 12, dpi = 1000)
+
+```
+# 2022
+```{r setup, include=FALSE}
+library(pheatmap)
+library(reshape2)
+
+# Estrarre la matrice dei valori medi di Beta
+beta_mean <- mlvar_SI_2022_1[["results"]][["Beta"]][["mean"]]
+df_mean <- data.frame(beta_mean)
+
+# Estrarre la matrice dei p-value di Beta
+beta_p <- mlvar_SI_2022_1[["results"]][["Beta"]][["P"]]
+df_p <- data.frame(beta_p)
+
+# Rimuovere le colonne con valori NA
+df_mean_clean <- df_mean[, colSums(is.na(df_mean)) == 0]
+df_p_clean <- df_p[, colSums(is.na(df_p)) == 0]
+
+# Convertire i dataframe in matrici
+clean_matrix_mean <- as.matrix(df_mean_clean)
+clean_matrix_p <- as.matrix(df_p_clean)
+
+# Funzione per determinare se il numero è significativo e definire i colori
+number_color_fun <- function(p_value) {
+  if (p_value < 0.05) {
+    return("red")  # Colore per i numeri significativi
+  } else {
+    return("black")  # Colore per i numeri non significativi
+  }
+}
+
+# Applicare la funzione per determinare i colori dei numeri
+number_colors <- matrix(mapply(number_color_fun, clean_matrix_p), 
+                        nrow = nrow(clean_matrix_p), 
+                        ncol = ncol(clean_matrix_p))
+
+# Nuove etichette per l'asse delle X e delle Y
+new_labels_row <- c("I_t", "New Cases", "admHosp", "admICU", "death","First dose", "Second dose", "Booster dose", "Delta","GH490R", "Omicron", "Alpha", "BA.2.75", "CH.1.1", "XBB", "XBB.1.5")
+new_labels_col <- c("I_t", "New Cases", "admHosp", "admICU", "death","First dose", "Second dose", "Booster dose", "Delta","GH490R", "Omicron", "Alpha", "BA.2.75", "CH.1.1", "XBB", "XBB.1.5")
+
+# Generare la heatmap
+p_heatmap_SI_2022 <- pheatmap(clean_matrix_mean, 
+         main = "Heatmap of Beta Mean 2022",
+         color = colorRampPalette(c("blue", "white", "orange"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = round(clean_matrix_mean, 2),
+         number_color = number_colors,
+         labels_row = new_labels_row,  # Etichette per l'asse Y
+         labels_col = new_labels_col,  # Etichette per l'asse X
+         angle_col = 45,  # Ruota le etichette per migliorare la leggibilità
+         cellwidth = 30, cellheight = 30)  # Modifica la dimensione delle celle per una migliore disposizione
+
+ggsave("HEATMAP_2022_SI.png", plot = p_heatmap_SI_2022, width = 16, height = 12, dpi = 1000)
+
+```
+
+# 2022 FILTERED
+```{r setup, include=FALSE}
+library(pheatmap)
+library(reshape2)
+
+# Estrarre la matrice dei valori medi di Beta
+beta_mean <- mlvar_SI_2022_1[["results"]][["Beta"]][["mean"]]
+df_mean <- data.frame(beta_mean)
+
+# Estrarre la matrice dei p-value di Beta
+beta_p <- mlvar_SI_2022_1[["results"]][["Beta"]][["P"]]
+df_p <- data.frame(beta_p)
+
+index_to_remove <- 16
+
+# Rimuovi la riga e la colonna "Booster dose" dai data frame originali
+df_mean_filtered <- df_mean[-index_to_remove, -index_to_remove]
+df_p_filtered <- df_p[-index_to_remove, -index_to_remove]
+
+# Rimuovere le colonne con valori NA
+df_mean_clean <- df_mean_filtered[, colSums(is.na(df_mean_filtered)) == 0]
+df_p_clean <- df_p_filtered[, colSums(is.na(df_p_filtered)) == 0]
+
+# Convertire i dataframe in matrici
+clean_matrix_mean <- as.matrix(df_mean_clean)
+clean_matrix_p <- as.matrix(df_p_clean)
+
+# Funzione per determinare se il numero è significativo e definire i colori
+number_color_fun <- function(p_value) {
+  if (p_value < 0.05) {
+    return("red")  # Colore per i numeri significativi
+  } else {
+    return("black")  # Colore per i numeri non significativi
+  }
+}
+
+# Applicare la funzione per determinare i colori dei numeri
+number_colors <- matrix(mapply(number_color_fun, clean_matrix_p), 
+                        nrow = nrow(clean_matrix_p), 
+                        ncol = ncol(clean_matrix_p))
+
+# Nuove etichette per l'asse delle X e delle Y
+new_labels_row <- c("I_t", "New Cases", "admHosp", "admICU", "death","First dose", "Second dose", "Booster dose", "Delta","GH490R", "Omicron", "Alpha", "BA.2.75", "CH.1.1", "XBB")
+new_labels_col <- c("I_t", "New Cases", "admHosp", "admICU", "death","First dose", "Second dose", "Booster dose", "Delta","GH490R", "Omicron", "Alpha", "BA.2.75", "CH.1.1", "XBB")
+
+# Generare la heatmap
+p_heatmap_SI_2022 <- pheatmap(clean_matrix_mean, 
+         main = "Heatmap of Beta Mean 2022",
+         color = colorRampPalette(c("blue", "white", "orange"))(100),
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,
+         display_numbers = round(clean_matrix_mean, 2),
+         number_color = number_colors,
+         labels_row = new_labels_row,  # Etichette per l'asse Y
+         labels_col = new_labels_col,  # Etichette per l'asse X
+         angle_col = 45,  # Ruota le etichette per migliorare la leggibilità
+         cellwidth = 30, cellheight = 30)  # Modifica la dimensione delle celle per una migliore disposizione
+
+ggsave("HEATMAP_2022_SI_filtered.png", plot = p_heatmap_SI_2022, width = 16, height = 12, dpi = 1000)
+```
+
+
+
+
+
+
+# BETA IN TIME 
+
+```{r setup, include=FALSE}
+summary_2020 <- summary(mlvar_SI_2020_1$output$temporal$I_t)
+summary_2021 <- summary(mlvar_SI_2021_1$output$temporal$I_t)
+summary_2022 <- summary(mlvar_SI_2022_1$output$temporal$I_t)
+# Estrazione dei dati dai summary
+betas_2020 <- summary_2020$coefficients[1:7, "Estimate"]
+betas_2021 <- summary_2021$coefficients[1:7, "Estimate"]
+betas_2022 <- summary_2022$coefficients[1:7, "Estimate"]
+
+# Creazione di un data frame unificato
+years <- c(rep(2020, length(betas_2020)), rep(2021, length(betas_2021)), rep(2022, length(betas_2022)))
+predictors <- rep(c("nuoviCasi_t", "admHosp_t", "admICU_t", "morti_t","First dose", "Second dose", "Booster dose"), 3)
+betas <- c(betas_2020, betas_2021, betas_2022)
+
+effects_df <- data.frame(
+  Year = years,
+  Predictor = predictors,
+  Beta = betas
+)
+
+# Creazione del grafico
+library(ggplot2)
+p_betatime <- ggplot(effects_df, aes(x = Predictor, y = Beta, group = Year, color = as.factor(Year))) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Fixed Effects (Betas) in Time",
+       x = "Predictors",
+       y = "Value",
+       color = "Year") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 22),  # Increase X-axis text size
+        axis.text.y = element_text(size = 22),  # Increase Y-axis text size
+        axis.title.x = element_text(size = 24),  # Increase X-axis title size
+        axis.title.y = element_text(size = 24),  # Increase Y-axis title size
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 32),  # Center and bold the title
+        legend.text = element_text(size = 22),  # Increase legend text size
+        legend.title = element_text(size = 22),  # Increase legend title size
+        legend.key.size = unit(2, "lines"))  # Increase the size of the legend
+
+ggsave("BETATIME_SI.png", plot = p_betatime, width = 16, height = 12, dpi = 1000)
+
+```
+
+
+# BETA IN TIME SECOND VERSION
+
+```{r setup, include=FALSE}
+summary_2020 <- summary(mlvar_SI_2020_1$output$temporal$I_t)
+summary_2021 <- summary(mlvar_SI_2021_1$output$temporal$I_t)
+summary_2022 <- summary(mlvar_SI_2022_1$output$temporal$I_t)
+# Estrazione dei dati dai summary
+betas_2020 <- summary_2020$coefficients[3:9, "Estimate"]
+betas_2021 <- summary_2021$coefficients[3:9, "Estimate"]
+betas_2022 <- summary_2022$coefficients[3:9, "Estimate"]
+
+# Creazione di un data frame unificato
+years <- c(rep(2020, length(betas_2020)), rep(2021, length(betas_2021)), rep(2022, length(betas_2022)))
+predictors <- rep(c("New Cases", "admHosp", "admICU", "death","First dose", "Second dose", "Booster dose"), 3)
+betas <- c(betas_2020, betas_2021, betas_2022)
+
+effects_df <- data.frame(
+  Year = years,
+  Predictor = predictors,
+  Beta = betas
+)
+
+# Creazione del grafico
+library(ggplot2)
+
+p_beta_time_second <- ggplot(effects_df, aes(x = as.factor(Year), y = Beta, group = Predictor, color = Predictor)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Fixed Effects (Betas) in Time",
+       x = "Year",
+       y = "Value",
+       color = "Predictor") +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 22),  # Increase X-axis text size
+        axis.text.y = element_text(size = 22),  # Increase Y-axis text size
+        axis.title.x = element_text(size = 24),  # Increase X-axis title size
+        axis.title.y = element_text(size = 24),  # Increase Y-axis title size
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 32),  # Center and bold the title
+        legend.text = element_text(size = 22),  # Increase legend text size
+        legend.title = element_text(size = 22),  # Increase legend title size
+        legend.key.size = unit(2, "lines"))  # Increase the size of the legend
+
+ggsave("BETATIME_SI_SECOND_VERSION.png", plot = p_beta_time_second, width = 16, height = 12, dpi = 1000)
+```
+
+# BETA IN TIME NEWCASES 
+
+```{r setup, include=FALSE}
+summary_2020 <- summary(mlvar_SI_2020_1$output$temporal$nuoviCasi_t)
+summary_2021 <- summary(mlvar_SI_2021_1$output$temporal$nuoviCasi_t)
+summary_2022 <- summary(mlvar_SI_2022_1$output$temporal$nuoviCasi_t)
+# Estrazione dei dati dai summary
+betas_2020 <- summary_2020$coefficients[c(2,4:9), "Estimate"]
+betas_2021 <- summary_2021$coefficients[c(2,4:9), "Estimate"]
+betas_2022 <- summary_2022$coefficients[c(2,4:9), "Estimate"]
+
+# Creazione di un data frame unificato
+years <- c(rep(2020, length(betas_2020)), rep(2021, length(betas_2021)), rep(2022, length(betas_2022)))
+predictors <- rep(c("I_t", "admHosp", "admICU", "death","First dose", "Second dose", "Booster dose"), 3)
+betas <- c(betas_2020, betas_2021, betas_2022)
+
+effects_df <- data.frame(
+  Year = years,
+  Predictor = predictors,
+  Beta = betas
+)
+
+# Creazione del grafico
+library(ggplot2)
+
+p_beta_time_second <- ggplot(effects_df, aes(x = as.factor(Year), y = Beta, group = Predictor, color = Predictor)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Fixed Effects (Betas) in Time",
+       x = "Year",
+       y = "Value",
+       color = "Predictor") +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 22),  # Increase X-axis text size
+        axis.text.y = element_text(size = 22),  # Increase Y-axis text size
+        axis.title.x = element_text(size = 24),  # Increase X-axis title size
+        axis.title.y = element_text(size = 24),  # Increase Y-axis title size
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 32),  # Center and bold the title
+        legend.text = element_text(size = 22),  # Increase legend text size
+        legend.title = element_text(size = 22),  # Increase legend title size
+        legend.key.size = unit(2, "lines"))  # Increase the size of the legend
+
+ggsave("BETATIME_NC_SECOND_VERSION.png", plot = p_beta_time_second, width = 16, height = 12, dpi = 1000)
+```
+
+
+
+
+
+
+
+
+
+# RANDOM EFFECT
+
+# BOX PLOT 2020
+```{r setup, include=FALSE}
+library(ggplot2)
+library(dplyr)
+
+# Convertire ranef_data in un dataframe e aggiungere la colonna 'group'
+ranef_data <- ranef(mlvar_SI_2020_1$output$temporal$I_t)
+ranef_df <- as.data.frame(ranef_data)
+ranef_df$group <- rownames(ranef_df)
+
+# Verifica la struttura del dataframe
+str(ranef_df)
+
+# Definire le etichette dei termini
+term_labels <- c(
+    "(Intercept)" = "Intercept",
+    "Predictor__1" = "I_t",
+    "Predictor__2" = "New Cases",
+    "Predictor__3" = "admHosp",
+    "Predictor__4" = "admICU",
+    "Predictor__5" = "death",
+    "Predictor__6" = "First dose",
+    "Predictor__7" = "Second dose",
+    "Predictor__8" = "Booster dose",
+    "Predictor__9" = "Alpha",
+    "Predictor__10" = "Beta",
+    "Predictor__11" = "Delta",
+    "Predictor__12" = "Zeta"
+)
+
+# Sostituire i termini con le etichette codificate
+ranef_df <- ranef_df %>%
+    mutate(term = term_labels[term])
+
+# Verifica la struttura del dataframe aggiornato
+str(ranef_df)
+
+# Definire le etichette dei gruppi
+group_labels <- c(
+    "1" = "Spain",
+    "2" = "France",
+    "3" = "Netherlands",
+    "4" = "Latvia",
+    "5" = "Slovenia",
+    "6" = "Greece",
+    "7" = "Ireland",
+    "8" = "Cyprus",
+    "9" = "Estonia"
+)
+
+# Aggiungere le etichette dei gruppi come fattori
+ranef_df$group <- factor(ranef_df$grp, levels = names(group_labels), labels = group_labels)
+
+# Creare il grafico
+p_RE_2020 <- ggplot(ranef_df, aes(x = group, y = condval, color = term)) +
+    geom_point(size = 4) +
+    facet_wrap(~ term, scales = "free", ncol = 3) +
+    labs(title = "Random Effects - 2020", x = "Group", y = "Conditional Values") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 22),  # Increase X-axis text size
+        axis.text.y = element_text(size = 22),  # Increase Y-axis text size
+        axis.title.x = element_text(size = 24),  # Increase X-axis title size
+        axis.title.y = element_text(size = 24),  # Increase Y-axis title size
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 32),  # Center and bold the title
+        legend.text = element_text(size = 22),  # Increase legend text size
+        legend.title = element_text(size = 22),  # Increase legend title size
+        legend.key.size = unit(2, "lines"),
+        strip.text = element_text(size = 26)  # Aumenta la dimensione dei titoli dei sottografici
+        )  # Increase the size of the legend
+
+ggsave("RE_2020_SI.png", plot = p_RE_2020, width = 28, height = 18, dpi = 1000)
+
+
+```
+
+# NATION 
+```{r setup, include=FALSE}
+library(ggplot2)
+library(dplyr)
+
+# Convertire ranef_data in un dataframe e aggiungere la colonna 'group'
+ranef_data <- ranef(mlvar_SI_2020_1$output$temporal$I_t)
+ranef_df <- as.data.frame(ranef_data)
+ranef_df$group <- rownames(ranef_df)
+
+# Verifica la struttura del dataframe
+str(ranef_df)
+
+# Definire le etichette dei termini
+term_labels <- c(
+    "(Intercept)" = "Intercept",
+    "Predictor__1" = "I_t",
+    "Predictor__2" = "New Cases",
+    "Predictor__3" = "admHosp",
+    "Predictor__4" = "admICU",
+    "Predictor__5" = "death",
+    "Predictor__6" = "First dose",
+    "Predictor__7" = "Second dose",
+    "Predictor__8" = "Booster dose",
+    "Predictor__9" = "Alpha",
+    "Predictor__10" = "Beta",
+    "Predictor__11" = "Delta",
+    "Predictor__12" = "Zeta"
+)
+
+# Sostituire i termini con le etichette codificate
+ranef_df <- ranef_df %>%
+    mutate(term = term_labels[term])
+
+# Verifica la struttura del dataframe aggiornato
+str(ranef_df)
+
+# Definire le etichette dei gruppi
+group_labels <- c(
+    "1" = "Spain",
+    "2" = "France",
+    "3" = "Netherlands",
+    "4" = "Latvia",
+    "5" = "Slovenia",
+    "6" = "Greece",
+    "7" = "Ireland",
+    "8" = "Cyprus",
+    "9" = "Estonia"
+)
+
+# Aggiungere le etichette dei gruppi come fattori
+ranef_df$group <- factor(ranef_df$grp, levels = names(group_labels), labels = group_labels)
+
+# Creare il grafico con colori basati sulla nazione (group)
+p_RE_2020 <- ggplot(ranef_df, aes(x = group, y = condval, color = group)) +
+    geom_point(size = 4) +
+    facet_wrap(~ term, scales = "free", ncol = 3) +
+    labs(title = "Random Effects - 2020", x = "Group", y = "Conditional Values") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 22),  # Increase X-axis text size
+        axis.text.y = element_text(size = 22),  # Increase Y-axis text size
+        axis.title.x = element_text(size = 24),  # Increase X-axis title size
+        axis.title.y = element_text(size = 24),  # Increase Y-axis title size
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 32),  # Center and bold the title
+        legend.text = element_text(size = 22),  # Increase legend text size
+        legend.title = element_text(size = 22),  # Increase legend title size
+        legend.key.size = unit(2, "lines"),
+        strip.text = element_text(size = 26)  # Aumenta la dimensione dei titoli dei sottografici
+        )  # Increase the size of the legend
+
+ggsave("RE_2020_SI.png", plot = p_RE_2020, width = 28, height = 18, dpi = 1000)
+```
+
+
+# BOXPLOT 2021
+```{r setup, include=FALSE}
+library(ggplot2)
+library(dplyr)
+
+# Convertire ranef_data in un dataframe e aggiungere la colonna 'group'
+ranef_data <- ranef(mlvar_SI_2021_1$output$temporal$I_t)
+ranef_df <- as.data.frame(ranef_data)
+ranef_df$group <- rownames(ranef_df)
+
+# Verifica la struttura del dataframe
+str(ranef_df)
+
+# Definire le etichette dei termini
+term_labels <- c(
+    "(Intercept)" = "Intercept",
+    "Predictor__1" = "I_t",
+    "Predictor__2" = "New Cases",
+    "Predictor__3" = "admHosp",
+    "Predictor__4" = "admICU",
+    "Predictor__5" = "death",
+    "Predictor__6" = "First dose",
+    "Predictor__7" = "Second dose",
+    "Predictor__8" = "Booster dose",
+    "Predictor__9" = "Alpha",
+    "Predictor__10" = "Beta",
+    "Predictor__11" = "Delta",
+    "Predictor__12" = "Zeta",
+    "Predictor__13" = "Theta",
+    "Predictor__14" = "Gamma",
+    "Predictor__15" = "Epsilon",
+    "Predictor__16" = "Eta",
+    "Predictor__17" = "Kappa",
+    "Predictor__18" = "Iota",
+    "Predictor__19" = "Mu",
+    "Predictor__20" = "Lambda",
+    "Predictor__21" = "GH490R",
+    "Predictor__22" = "Omicron"
+)
+
+# Sostituire i termini con le etichette codificate
+ranef_df <- ranef_df %>%
+    mutate(term = term_labels[term])
+
+# Verifica la struttura del dataframe aggiornato
+str(ranef_df)
+
+# Definire le etichette dei gruppi
+group_labels <- c(
+    "1" = "Spain",
+    "2" = "France",
+    "3" = "Netherlands",
+    "4" = "Latvia",
+    "5" = "Slovenia",
+    "6" = "Greece",
+    "7" = "Ireland",
+    "8" = "Cyprus",
+    "9" = "Estonia"
+)
+
+# Aggiungere le etichette dei gruppi come fattori
+ranef_df$group <- factor(ranef_df$grp, levels = names(group_labels), labels = group_labels)
+
+# Definire i predittori da rimuovere
+predictors_to_remove <- c("Eta", "Kappa", "Iota", "Mu", "Lambda", "GH490R")
+
+# Filtrare i predittori che non sono nella lista di rimozione
+ranef_df <- ranef_df %>%
+    filter(!(term %in% predictors_to_remove))
+
+# Creare il grafico con colori basati sulla nazione (group)
+p_RE_2021 <- ggplot(ranef_df, aes(x = group, y = condval, color = group)) +
+    geom_point(size = 4) +
+    facet_wrap(~ term, scales = "free", ncol = 3) +
+    labs(title = "Random Effects - 2021", x = "Group", y = "Conditional Values") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 22),  # Increase X-axis text size
+        axis.text.y = element_text(size = 22),  # Increase Y-axis text size
+        axis.title.x = element_text(size = 24),  # Increase X-axis title size
+        axis.title.y = element_text(size = 24),  # Increase Y-axis title size
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 32),  # Center and bold the title
+        legend.text = element_text(size = 22),  # Increase legend text size
+        legend.title = element_text(size = 22),  # Increase legend title size
+        legend.key.size = unit(2, "lines"),
+        strip.text = element_text(size = 26)  # Aumenta la dimensione dei titoli dei sottografici
+        )  # Increase the size of the legend
+
+ggsave("RE_2021_SI.png", plot = p_RE_2021, width = 28, height = 24, dpi = 1000)
+```
+
+# BOXPLOT 2022
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(dplyr)
+
+# Convertire ranef_data in un dataframe e aggiungere la colonna 'group'
+ranef_data <- ranef(mlvar_SI_2022_1$output$temporal$I_t)
+ranef_df <- as.data.frame(ranef_data)
+ranef_df$group <- rownames(ranef_df)
+
+# Verifica la struttura del dataframe
+str(ranef_df)
+
+# Definire le etichette dei termini
+term_labels <- c(
+    "(Intercept)" = "Intercept",
+    "Predictor__1" = "I_t",
+    "Predictor__2" = "New Cases",
+    "Predictor__3" = "admHosp",
+    "Predictor__4" = "admICU",
+    "Predictor__5" = "death",
+    "Predictor__6" = "First dose",
+    "Predictor__7" = "Second dose",
+    "Predictor__8" = "Booster dose",
+    "Predictor__9" = "Delta",
+    "Predictor__10" = "GH490R",
+    "Predictor__11" = "Omicron",
+    "Predictor__12" = "Alpha",
+    "Predictor__13" = "BA.2.75",
+    "Predictor__14" = "CH.1.1",
+    "Predictor__15" = "XBB",
+    "Predictor__16" = "XBB.1.5"
+)
+
+# Sostituire i termini con le etichette codificate
+ranef_df <- ranef_df %>%
+    mutate(term = term_labels[term])
+
+# Verifica la struttura del dataframe aggiornato
+str(ranef_df)
+
+# Definire le etichette dei gruppi
+group_labels <- c(
+    "1" = "Spain",
+    "2" = "France",
+    "3" = "Netherlands",
+    "4" = "Latvia",
+    "5" = "Slovenia",
+    "6" = "Greece",
+    "7" = "Ireland",
+    "8" = "Cyprus",
+    "9" = "Estonia"
+)
+
+# Aggiungere le etichette dei gruppi come fattori
+ranef_df$group <- factor(ranef_df$grp, levels = names(group_labels), labels = group_labels)
+
+# Creare il grafico con colori basati sulla nazione (group)
+p_RE_2022 <- ggplot(ranef_df, aes(x = group, y = condval, color = group)) +
+    geom_point(size = 4) +
+    facet_wrap(~ term, scales = "free", ncol = 3) +
+    labs(title = "Random Effects - 2022", x = "Group", y = "Conditional Values") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 22),  # Increase X-axis text size
+        axis.text.y = element_text(size = 22),  # Increase Y-axis text size
+        axis.title.x = element_text(size = 24),  # Increase X-axis title size
+        axis.title.y = element_text(size = 24),  # Increase Y-axis title size
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 32),  # Center and bold the title
+        legend.text = element_text(size = 22),  # Increase legend text size
+        legend.title = element_text(size = 22),  # Increase legend title size
+        legend.key.size = unit(2, "lines"),
+        strip.text = element_text(size = 26)  # Aumenta la dimensione dei titoli dei sottografici
+        )  # Increase the size of the legend
+
+ggsave("RE_2022_SI.png", plot = p_RE_2022, width = 28, height = 22, dpi = 1000)
+```
+
+#2021 New cases 
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(dplyr)
+
+# Convertire ranef_data in un dataframe e aggiungere la colonna 'group'
+ranef_data <- ranef(mlvar_SI_2021_1$output$temporal$nuoviCasi_t)
+ranef_df <- as.data.frame(ranef_data)
+ranef_df$group <- rownames(ranef_df)
+
+# Verifica la struttura del dataframe
+str(ranef_df)
+
+# Definire le etichette dei termini
+term_labels <- c(
+    "(Intercept)" = "Intercept",
+    "Predictor__1" = "I_t",
+    "Predictor__2" = "New Cases",
+    "Predictor__3" = "admHosp",
+    "Predictor__4" = "admICU",
+    "Predictor__5" = "death",
+    "Predictor__6" = "First dose",
+    "Predictor__7" = "Second dose",
+    "Predictor__8" = "Booster dose",
+    "Predictor__9" = "Alpha",
+    "Predictor__10" = "Beta",
+    "Predictor__11" = "Delta",
+    "Predictor__12" = "Zeta",
+    "Predictor__13" = "Theta",
+    "Predictor__14" = "Gamma",
+    "Predictor__15" = "Epsilon",
+    "Predictor__16" = "Eta",
+    "Predictor__17" = "Kappa",
+    "Predictor__18" = "Iota",
+    "Predictor__19" = "Mu",
+    "Predictor__20" = "Lambda",
+    "Predictor__21" = "GH490R",
+    "Predictor__22" = "Omicron"
+)
+
+# Sostituire i termini con le etichette codificate
+ranef_df <- ranef_df %>%
+    mutate(term = term_labels[term])
+
+# Verifica la struttura del dataframe aggiornato
+str(ranef_df)
+
+# Definire le etichette dei gruppi
+group_labels <- c(
+    "1" = "Spain",
+    "2" = "France",
+    "3" = "Netherlands",
+    "4" = "Latvia",
+    "5" = "Slovenia",
+    "6" = "Greece",
+    "7" = "Ireland",
+    "8" = "Cyprus",
+    "9" = "Estonia"
+)
+
+# Aggiungere le etichette dei gruppi come fattori
+ranef_df$group <- factor(ranef_df$grp, levels = names(group_labels), labels = group_labels)
+
+# Definire i predittori da rimuovere
+predictors_to_remove <- c("Eta", "Kappa", "Iota", "Mu", "Lambda", "GH490R")
+
+# Filtrare i predittori che non sono nella lista di rimozione
+ranef_df <- ranef_df %>%
+    filter(!(term %in% predictors_to_remove))
+
+# Creare il grafico con colori basati sulla nazione (group)
+p_RE_2021 <- ggplot(ranef_df, aes(x = group, y = condval, color = group)) +
+    geom_point(size = 4) +
+    facet_wrap(~ term, scales = "free", ncol = 3) +
+    labs(title = "Random Effects - 2021", x = "Group", y = "Conditional Values") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 22),  # Increase X-axis text size
+        axis.text.y = element_text(size = 22),  # Increase Y-axis text size
+        axis.title.x = element_text(size = 24),  # Increase X-axis title size
+        axis.title.y = element_text(size = 24),  # Increase Y-axis title size
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 32),  # Center and bold the title
+        legend.text = element_text(size = 22),  # Increase legend text size
+        legend.title = element_text(size = 22),  # Increase legend title size
+        legend.key.size = unit(2, "lines"),
+        strip.text = element_text(size = 26)  # Aumenta la dimensione dei titoli dei sottografici
+        )  # Increase the size of the legend
+
+ggsave("RE_2021_NC.png", plot = p_RE_2021, width = 28, height = 24, dpi = 1000)
+```
+
+#2022 New cases
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(dplyr)
+
+# Convertire ranef_data in un dataframe e aggiungere la colonna 'group'
+ranef_data <- ranef(mlvar_SI_2022_1$output$temporal$nuoviCasi_t)
+ranef_df <- as.data.frame(ranef_data)
+ranef_df$group <- rownames(ranef_df)
+
+# Verifica la struttura del dataframe
+str(ranef_df)
+
+# Definire le etichette dei termini
+term_labels <- c(
+    "(Intercept)" = "Intercept",
+    "Predictor__1" = "I_t",
+    "Predictor__2" = "New Cases",
+    "Predictor__3" = "admHosp",
+    "Predictor__4" = "admICU",
+    "Predictor__5" = "death",
+    "Predictor__6" = "First dose",
+    "Predictor__7" = "Second dose",
+    "Predictor__8" = "Booster dose",
+    "Predictor__9" = "Delta",
+    "Predictor__10" = "GH490R",
+    "Predictor__11" = "Omicron",
+    "Predictor__12" = "Alpha",
+    "Predictor__13" = "BA.2.75",
+    "Predictor__14" = "CH.1.1",
+    "Predictor__15" = "XBB",
+    "Predictor__16" = "XBB.1.5"
+)
+
+# Sostituire i termini con le etichette codificate
+ranef_df <- ranef_df %>%
+    mutate(term = term_labels[term])
+
+# Verifica la struttura del dataframe aggiornato
+str(ranef_df)
+
+# Definire le etichette dei gruppi
+group_labels <- c(
+    "1" = "Spain",
+    "2" = "France",
+    "3" = "Netherlands",
+    "4" = "Latvia",
+    "5" = "Slovenia",
+    "6" = "Greece",
+    "7" = "Ireland",
+    "8" = "Cyprus",
+    "9" = "Estonia"
+)
+
+# Aggiungere le etichette dei gruppi come fattori
+ranef_df$group <- factor(ranef_df$grp, levels = names(group_labels), labels = group_labels)
+
+# Creare il grafico con colori basati sulla nazione (group)
+p_RE_2022 <- ggplot(ranef_df, aes(x = group, y = condval, color = group)) +
+    geom_point(size = 4) +
+    facet_wrap(~ term, scales = "free", ncol = 3) +
+    labs(title = "Random Effects - 2022", x = "Group", y = "Conditional Values") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 22),  # Increase X-axis text size
+        axis.text.y = element_text(size = 22),  # Increase Y-axis text size
+        axis.title.x = element_text(size = 24),  # Increase X-axis title size
+        axis.title.y = element_text(size = 24),  # Increase Y-axis title size
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 32),  # Center and bold the title
+        legend.text = element_text(size = 22),  # Increase legend text size
+        legend.title = element_text(size = 22),  # Increase legend title size
+        legend.key.size = unit(2, "lines"),
+        strip.text = element_text(size = 26)  # Aumenta la dimensione dei titoli dei sottografici
+        )  # Increase the size of the legend
+
+ggsave("RE_2022_NC.png", plot = p_RE_2022, width = 28, height = 22, dpi = 1000)
+```
+
+
+
+
+
+
