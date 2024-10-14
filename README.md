@@ -35,6 +35,7 @@ This repository contains the code for replicating the analysis presented in the 
 19. tidyverse <code>install.packages("tidyverse")</code>
 20. zoo <code>install.packages("zoo")</code>
 
+Python version <code>[3.8](https://www.python.org/downloads/release/python-390/)</code> and R <code>[4.4.0](https://cran.r-project.org/bin/windows/base/)</code> are required. 
 
 ## Data
 The <code>Data</code> folder contains the necessary CSV files for the analysis. These Folder include:
