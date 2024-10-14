@@ -116,45 +116,6 @@ def main(options):
         kmers = calculate_kmers(valid_sequence, k) # Calculate the possible k-mers of sequences.
         kmers_unique = list(set(kmers))
 
-        import os
-        for i in range(0, len(indices_by_week)):
-            indices = indices_by_week[i] # Index of sequences present in the week of simulation.
-            sequences_for_week = []
-            identifier_for_week = []
-            week = i + 1
-            os.makedirs(str(options.save_path) + '/' + str(week)) # Set the path where saving the files.
-            for m, index in enumerate(indices):
-                sequences_for_week.append(sequences[index]) # Sequences present in the week of simulation.
-                identifier_for_week.append(metadata[index, 4]) # Identifiers present in the week of simulation.
-            for h, seq in enumerate(sequences_for_week):
-                format_csv(seq, identifier_for_week[h], kmers_unique, k, week, l, str(options.save_path)) # Write the csv file for the dataset.
-
-        # Creating the dataset for the simulation
-        import os
-        import csv
-
-        csv_directory = str(options.save_path) # Fix the directory of csv
-
-        # Loop through all subdirectories and files in the main folder.
-        for root, directories, files in os.walk(csv_directory):
-            for directory in directories:
-                # Create a text file and open it in append mode.
-                txt_file = os.path.join(root, directory, "week_dataset.txt")
-                with open(txt_file, "a") as output_file:
-                    # Iterate over each file in the current directory.
-                    for filename in os.listdir(os.path.join(root, directory)):
-                        # Check if the file is a CSV file.
-                        if filename.endswith(".csv"):
-                            # Construct the full path to the CSV file.
-                            csv_file = os.path.join(root, directory, filename)
-                            # Open the CSV file using the csv library and read each line.
-                            with open(csv_file, "r") as input_file:
-                                reader = csv.reader(input_file)
-                                next(reader)  # Skip the first line (usually headers).
-                                for row in reader:
-                                    # Write each row to the text file.
-                                    output_file.write(",".join(row) + "\n")
-
     print('\033[1m The dataset was created in the directory: ' + str(options.save_path) +'! \033[0m')
 if __name__ == "__main__":
     parser = OptionParser()
